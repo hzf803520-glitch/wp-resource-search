@@ -422,9 +422,18 @@ function cleanText(value, maxLength = 180) {
 }
 
 function cleanUrl(value) {
-  const url = cleanText(value, 2000);
-  if (!url) return "";
-  if (url.startsWith("/") || url.startsWith("./") || url.startsWith("data:image/")) return url;
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+
+  // Embedded poster images are intentionally stored in PostgreSQL. Do not
+  // truncate these data URLs; truncation produces a broken image after save.
+  if (raw.startsWith("data:image/")) {
+    const validImage = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(raw);
+    return validImage && raw.length <= 2 * 1024 * 1024 ? raw : "";
+  }
+
+  const url = raw.slice(0, 2000);
+  if (url.startsWith("/") || url.startsWith("./")) return url;
   try {
     const parsed = new URL(url);
     return ["http:", "https:"].includes(parsed.protocol) ? parsed.toString() : "";
