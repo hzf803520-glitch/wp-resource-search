@@ -1,0 +1,364 @@
+{
+  "meta": {
+    "version": 3,
+    "updatedAt": "2026-07-18T02:42:01.603Z"
+  },
+  "settings": {
+    "pageTitle": "网盘资源搜索",
+    "logoText": "WP",
+    "brandTitle": "网盘资源搜索",
+    "heroTitle": "网盘资源搜索",
+    "heroSubtitle": "聚合多个网盘来源，快速找到可用链接",
+    "searchAriaLabel": "搜索资源",
+    "searchPlaceholder": "搜索：片名 / 关键词 / 主演 / 资源名称",
+    "searchButton": "搜索",
+    "resultDefaultTitle": "搜索结果",
+    "resultsSuffix": "的结果",
+    "allSuffix": "· 全部",
+    "backToHot": "返回热门",
+    "emptyTitle": "没有找到相关资源",
+    "emptyDescription": "换个关键词或分类再试试",
+    "hotTitle": "🔥 热门资源",
+    "popularTitle": "🏆 人气榜",
+    "ratingTitle": "⭐ 好评榜",
+    "viewMore": "查看更多",
+    "footerText": "本站为界面与交互演示，请仅添加你拥有授权的公开资源。",
+    "posterKicker": "高清资源 · 在线更新",
+    "rankPrefix": "TOP",
+    "modalTitle": "资源链接",
+    "modalSuccess": "获取成功!",
+    "modalLinkStatus": "资源链接 · 演示",
+    "modalTip": "请点击对应网盘按钮复制或打开链接",
+    "copyButton": "复制链接",
+    "openButton": "打开链接",
+    "closeButton": "关闭",
+    "copiedToast": "链接已复制",
+    "noLinkToast": "该资源暂未配置链接",
+    "sourceFallbackLabel": "网盘",
+    "offlineTitle": "网站服务尚未启动",
+    "offlineDescription": "请先运行后台服务，再刷新此页面。"
+  },
+  "theme": {
+    "accent": "#ff725f",
+    "accentSecondary": "#ff8a59",
+    "pageBackground": "#eaf8fa"
+  },
+  "categoryOrder": [
+    "电影",
+    "短剧",
+    "动漫",
+    "影视",
+    "小说",
+    "学习资料"
+  ],
+  "sources": [
+    {
+      "id": "baidu",
+      "label": "百度网盘",
+      "defaultLink": "https://pan.baidu.com/"
+    },
+    {
+      "id": "quark",
+      "label": "夸克网盘",
+      "defaultLink": "https://pan.quark.cn/"
+    }
+  ],
+  "resources": [
+    {
+      "id": 1,
+      "title": "功夫小镇（已完结）",
+      "artTitle": "功夫小镇",
+      "category": "电影",
+      "heat": 25,
+      "rating": 9.4,
+      "update": "完整版",
+      "image": "/assets/posters/wuxia.webp",
+      "colors": [
+        "#bd3528",
+        "#ffb44a"
+      ],
+      "links": {
+        "baidu": "https://pan.baidu.com/",
+        "quark": "https://pan.quark.cn/"
+      },
+      "visible": true
+    },
+    {
+      "id": 2,
+      "title": "牧神纪·更新91",
+      "artTitle": "牧神纪",
+      "category": "动漫",
+      "heat": 8,
+      "rating": 9.2,
+      "update": "更新91",
+      "image": "/assets/posters/fantasy-blue.webp",
+      "colors": [
+        "#14233f",
+        "#5e9ee8"
+      ],
+      "links": {
+        "baidu": "https://pan.baidu.com/",
+        "quark": "https://pan.quark.cn/"
+      },
+      "visible": true
+    },
+    {
+      "id": 3,
+      "title": "金符异闻录·更新06",
+      "artTitle": "金符异闻录",
+      "category": "影视",
+      "heat": 6,
+      "rating": 8.8,
+      "update": "更新06",
+      "image": "/assets/posters/mystery.webp",
+      "colors": [
+        "#293536",
+        "#aa6a38"
+      ],
+      "links": {
+        "baidu": "https://pan.baidu.com/"
+      },
+      "visible": true
+    },
+    {
+      "id": 4,
+      "title": "斗破苍穹年番·更新208",
+      "artTitle": "斗破苍穹",
+      "category": "动漫",
+      "heat": 5,
+      "rating": 9.1,
+      "update": "更新208",
+      "image": "/assets/posters/fantasy-jade.webp",
+      "colors": [
+        "#111f4d",
+        "#6550c8"
+      ],
+      "links": {
+        "baidu": "https://pan.baidu.com/",
+        "quark": "https://pan.quark.cn/"
+      },
+      "visible": true
+    },
+    {
+      "id": 5,
+      "title": "百花杀·1080P 更新17",
+      "artTitle": "百花杀",
+      "category": "短剧",
+      "heat": 5,
+      "rating": 8.9,
+      "update": "更新17",
+      "image": "/assets/posters/historical-romance.webp",
+      "colors": [
+        "#591a24",
+        "#dc8a53"
+      ],
+      "links": {
+        "baidu": "https://pan.baidu.com/",
+        "quark": "https://pan.quark.cn/"
+      },
+      "visible": true
+    },
+    {
+      "id": 6,
+      "title": "贵人多旺事·更新26【超前完结】",
+      "artTitle": "贵人多旺事",
+      "category": "短剧",
+      "heat": 4,
+      "rating": 8.6,
+      "update": "超前完结",
+      "image": "/assets/posters/historical-romance.webp",
+      "colors": [
+        "#6d261b",
+        "#f0bb61"
+      ],
+      "links": {
+        "baidu": "https://pan.baidu.com/"
+      },
+      "visible": true
+    },
+    {
+      "id": 7,
+      "title": "野狗骨头·1080P 更新24",
+      "artTitle": "野狗骨头",
+      "category": "影视",
+      "heat": 3,
+      "rating": 8.7,
+      "update": "更新24",
+      "image": "/assets/posters/mystery.webp",
+      "colors": [
+        "#315c74",
+        "#de6b3d"
+      ],
+      "links": {
+        "baidu": "https://pan.baidu.com/",
+        "quark": "https://pan.quark.cn/"
+      },
+      "visible": true
+    },
+    {
+      "id": 8,
+      "title": "检察官的提案·1080P 更新8",
+      "artTitle": "检察官的提案",
+      "category": "影视",
+      "heat": 2,
+      "rating": 9,
+      "update": "更新8",
+      "image": "/assets/posters/legal-drama.webp",
+      "colors": [
+        "#17283f",
+        "#62899b"
+      ],
+      "links": {
+        "baidu": "https://pan.baidu.com/"
+      },
+      "visible": true
+    },
+    {
+      "id": 9,
+      "title": "凡人修仙传动漫·更新182",
+      "artTitle": "凡人修仙传",
+      "category": "动漫",
+      "heat": 2,
+      "rating": 9.3,
+      "update": "更新182",
+      "image": "/assets/posters/fantasy-jade.webp",
+      "colors": [
+        "#193139",
+        "#598164"
+      ],
+      "links": {
+        "quark": "https://pan.quark.cn/"
+      },
+      "visible": true
+    },
+    {
+      "id": 10,
+      "title": "春灯引·全80集",
+      "artTitle": "春灯引",
+      "category": "短剧",
+      "heat": 12,
+      "rating": 8.5,
+      "update": "全80集",
+      "image": "/assets/posters/historical-romance.webp",
+      "colors": [
+        "#9d3f57",
+        "#f0a58d"
+      ],
+      "links": {
+        "baidu": "https://pan.baidu.com/",
+        "quark": "https://pan.quark.cn/"
+      },
+      "visible": true
+    },
+    {
+      "id": 11,
+      "title": "星河入梦·高清版",
+      "artTitle": "星河入梦",
+      "category": "电影",
+      "heat": 10,
+      "rating": 9,
+      "update": "高清版",
+      "image": "/assets/posters/fantasy-blue.webp",
+      "colors": [
+        "#182147",
+        "#8a4fc1"
+      ],
+      "links": {
+        "baidu": "https://pan.baidu.com/"
+      },
+      "visible": true
+    },
+    {
+      "id": 12,
+      "title": "长安十二笺·更新36",
+      "artTitle": "长安十二笺",
+      "category": "影视",
+      "heat": 7,
+      "rating": 8.8,
+      "update": "更新36",
+      "image": "/assets/posters/wuxia.webp",
+      "colors": [
+        "#442a21",
+        "#c98843"
+      ],
+      "links": {
+        "quark": "https://pan.quark.cn/"
+      },
+      "visible": true
+    },
+    {
+      "id": 13,
+      "title": "镜花缘·有声精校版",
+      "artTitle": "镜花缘",
+      "category": "小说",
+      "heat": 6,
+      "rating": 9.2,
+      "update": "精校版",
+      "image": "/assets/posters/fantasy-jade.webp",
+      "colors": [
+        "#17485c",
+        "#76b7a8"
+      ],
+      "links": {
+        "baidu": "https://pan.baidu.com/",
+        "quark": "https://pan.quark.cn/"
+      },
+      "visible": true
+    },
+    {
+      "id": 14,
+      "title": "零基础摄影系统课",
+      "artTitle": "摄影课",
+      "category": "学习资料",
+      "heat": 9,
+      "rating": 9.5,
+      "update": "全套课程",
+      "image": "/assets/posters/legal-drama.webp",
+      "colors": [
+        "#243246",
+        "#e3904d"
+      ],
+      "links": {
+        "baidu": "https://pan.baidu.com/"
+      },
+      "visible": true
+    },
+    {
+      "id": 15,
+      "title": "雾都来信·全12集",
+      "artTitle": "雾都来信",
+      "category": "电影",
+      "heat": 4,
+      "rating": 8.4,
+      "update": "全12集",
+      "image": "/assets/posters/mystery.webp",
+      "colors": [
+        "#283333",
+        "#8c7866"
+      ],
+      "links": {
+        "baidu": "https://pan.baidu.com/",
+        "quark": "https://pan.quark.cn/"
+      },
+      "visible": true
+    },
+    {
+      "id": 16,
+      "title": "UI设计进阶资料包",
+      "artTitle": "UI设计",
+      "category": "学习资料",
+      "heat": 5,
+      "rating": 9.1,
+      "update": "持续更新",
+      "image": "/assets/posters/legal-drama.webp",
+      "colors": [
+        "#443089",
+        "#f27991"
+      ],
+      "links": {
+        "quark": "https://pan.quark.cn/"
+      },
+      "visible": true
+    }
+  ]
+}

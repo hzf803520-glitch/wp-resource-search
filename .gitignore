@@ -1,0 +1,6 @@
+data/config.backup.json
+uploads/*
+!uploads/.gitkeep
+*.zip
+wp-resource-search-demo*.html
+.DS_Store

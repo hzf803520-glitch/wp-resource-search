@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#121824" />
+    <title>内容管理后台</title>
+    <link rel="stylesheet" href="./admin.css" />
+  </head>
+  <body>
+    <section class="login-view" id="loginView">
+      <div class="login-decoration decoration-one"></div>
+      <div class="login-decoration decoration-two"></div>
+      <form class="login-card" id="loginForm">
+        <div class="login-brand">
+          <span>WP</span>
+          <div>
+            <strong>内容管理后台</strong>
+            <small>Website Content Console</small>
+          </div>
+        </div>
+        <div class="login-copy">
+          <h1>欢迎回来</h1>
+          <p>登录后管理前台全部文案、图片和资源链接。</p>
+        </div>
+        <label>
+          <span>管理员账号</span>
+          <input id="loginUsername" name="username" autocomplete="username" value="admin" required />
+        </label>
+        <label>
+          <span>管理员密码</span>
+          <input id="loginPassword" name="password" type="password" autocomplete="current-password" placeholder="请输入密码" required />
+        </label>
+        <p class="login-error" id="loginError" role="alert"></p>
+        <button class="login-button" type="submit">登录后台</button>
+        <p class="first-login">首次运行默认密码：<code>admin123</code></p>
+      </form>
+    </section>
+
+    <div class="admin-view" id="adminView" hidden>
+      <aside class="sidebar">
+        <a class="sidebar-brand" href="/admin" aria-label="内容管理后台首页">
+          <span>WP</span>
+          <div><strong>内容后台</strong><small>Content Console</small></div>
+        </a>
+        <nav class="side-nav" aria-label="后台功能">
+          <button class="active" type="button" data-panel-target="copyPanel"><span>Aa</span>全站文案</button>
+          <button type="button" data-panel-target="visualPanel"><span>◐</span>视觉与分类</button>
+          <button type="button" data-panel-target="resourcePanel"><span>▦</span>资源与图片</button>
+        </nav>
+        <div class="side-summary">
+          <small>当前资源</small>
+          <strong id="resourceCount">0</strong>
+          <span>保存后前台立即生效</span>
+        </div>
+        <button class="logout-button" type="button" id="logoutButton">退出登录</button>
+      </aside>
+
+      <main class="admin-main">
+        <header class="topbar">
+          <div>
+            <p>网站内容配置</p>
+            <h1 id="pageHeading">全站文案</h1>
+          </div>
+          <div class="top-actions">
+            <span class="save-status" id="saveStatus">已同步</span>
+            <a class="preview-button" href="/" target="_blank" rel="noopener">预览前台</a>
+            <button class="save-button" id="saveButton" type="button">保存并发布</button>
+          </div>
+        </header>
+
+        <div class="content-area">
+          <section class="admin-panel active" id="copyPanel">
+            <div class="panel-intro">
+              <div><span class="eyebrow">COPYWRITING</span><h2>修改前台全部文案</h2><p>输入框内容会以纯文本显示，保存后刷新前台即可看到变化。</p></div>
+            </div>
+            <div id="settingsEditor"></div>
+          </section>
+
+          <section class="admin-panel" id="visualPanel" hidden>
+            <div class="panel-intro">
+              <div><span class="eyebrow">APPEARANCE</span><h2>主题、分类与网盘来源</h2><p>统一调整前台主色，控制分类顺序和网盘按钮。</p></div>
+            </div>
+            <div class="editor-section">
+              <div class="section-title"><div><h3>主题颜色</h3><p>修改页面背景、按钮和强调色。</p></div></div>
+              <div class="theme-grid" id="themeEditor"></div>
+            </div>
+            <div class="editor-section">
+              <div class="section-title"><div><h3>分类顺序</h3><p>使用逗号或换行分隔，未填写但已被资源使用的分类会自动追加。</p></div></div>
+              <textarea class="category-editor" id="categoryEditor" rows="5"></textarea>
+            </div>
+            <div class="editor-section">
+              <div class="section-title"><div><h3>网盘来源</h3><p>来源名称会显示在前台标签和资源弹窗中。</p></div><button class="outline-button" type="button" id="addSourceButton">+ 添加来源</button></div>
+              <div class="source-editor-list" id="sourcesEditor"></div>
+            </div>
+          </section>
+
+          <section class="admin-panel" id="resourcePanel" hidden>
+            <div class="panel-intro resource-intro">
+              <div><span class="eyebrow">RESOURCES</span><h2>资源文案、海报与链接</h2><p>每个资源都能单独修改封面、标题、热度、分类和网盘地址。</p></div>
+              <button class="add-resource-button" type="button" id="addResourceButton">+ 新增资源</button>
+            </div>
+            <div class="resource-toolbar">
+              <label class="resource-search"><span>⌕</span><input id="resourceSearch" type="search" placeholder="搜索资源名称或分类" /></label>
+              <span id="filteredCount">共 0 条</span>
+            </div>
+            <div class="resource-editor-list" id="resourcesEditor"></div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <div class="admin-toast" id="adminToast" role="status" aria-live="polite"></div>
+    <datalist id="categorySuggestions"></datalist>
+    <script src="./admin.js"></script>
+  </body>
+</html>

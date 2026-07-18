@@ -1,0 +1,15 @@
+{
+  "name": "wp-resource-search-admin",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "可通过后台配置文案、资源链接和海报图片的资源搜索站点",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node --watch server.mjs",
+    "check": "node --check server.mjs && node --check app.js && node --check admin.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

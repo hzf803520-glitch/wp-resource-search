@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#eaf8fa" id="themeColorMeta" />
+    <meta name="description" content="网盘资源搜索" />
+    <title>网盘资源搜索</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="brand-bar" aria-label="网站标题">
+        <div class="brand-logo" id="brandLogo" aria-hidden="true">WP</div>
+        <h1 id="brandTitle">网盘资源搜索</h1>
+      </header>
+
+      <section class="search-card" aria-labelledby="search-title">
+        <div>
+          <h2 id="search-title">网盘资源搜索</h2>
+          <p id="searchSubtitle">聚合多个网盘来源，快速找到可用链接</p>
+        </div>
+        <form class="search-box" id="searchForm" role="search">
+          <label class="sr-only" for="searchInput" id="searchLabel">搜索资源</label>
+          <input id="searchInput" type="search" autocomplete="off" placeholder="搜索：片名 / 关键词 / 主演 / 资源名称" />
+          <button type="submit" id="searchButton">搜索</button>
+        </form>
+        <div class="source-chips" aria-label="网盘类型筛选" id="sourceChips"></div>
+      </section>
+
+      <nav class="category-tabs" aria-label="资源分类" id="categoryTabs"></nav>
+
+      <section class="content-card result-section" id="resultSection" hidden>
+        <div class="section-heading">
+          <h2 id="resultTitle">搜索结果</h2>
+          <button type="button" id="clearFilter">返回热门</button>
+        </div>
+        <div class="poster-grid" id="resultGrid"></div>
+        <div class="empty-state" id="emptyState" hidden>
+          <span aria-hidden="true">🔎</span>
+          <strong id="emptyTitle">没有找到相关资源</strong>
+          <p id="emptyDescription">换个关键词或分类再试试</p>
+        </div>
+      </section>
+
+      <section class="content-card hot-section" aria-labelledby="hot-title">
+        <div class="section-heading">
+          <h2 id="hot-title">🔥 热门资源</h2>
+          <button type="button" data-show-all="hot"><span data-view-more>查看更多</span> <span aria-hidden="true">›</span></button>
+        </div>
+        <ol class="hot-list" id="hotList"></ol>
+      </section>
+
+      <section class="content-card poster-section" aria-labelledby="popular-title">
+        <div class="section-heading">
+          <h2 id="popular-title">🏆 人气榜</h2>
+          <button type="button" data-show-all="popular"><span data-view-more>查看更多</span> <span aria-hidden="true">›</span></button>
+        </div>
+        <div class="poster-grid" id="popularGrid"></div>
+      </section>
+
+      <section class="content-card poster-section" aria-labelledby="rating-title">
+        <div class="section-heading">
+          <h2 id="rating-title">⭐ 好评榜</h2>
+          <button type="button" data-show-all="rating"><span data-view-more>查看更多</span> <span aria-hidden="true">›</span></button>
+        </div>
+        <div class="poster-grid" id="ratingGrid"></div>
+      </section>
+
+      <footer>
+        <p id="footerText">本站为界面与交互演示，请仅添加你拥有授权的公开资源。</p>
+      </footer>
+    </main>
+
+    <div class="modal-backdrop" id="resourceModal" hidden>
+      <section class="resource-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <header class="modal-header">
+          <h2 id="modal-title">资源链接</h2>
+          <button class="icon-button" id="closeModalIcon" aria-label="关闭弹窗">×</button>
+        </header>
+        <div class="modal-body">
+          <div class="success-mark" aria-hidden="true">✓</div>
+          <h3 id="modalSuccess">获取成功!</h3>
+          <p id="modalResourceName">资源名称</p>
+
+          <div class="link-panel">
+            <div class="provider-tabs" id="providerTabs"></div>
+            <p class="link-status"><span id="activeProvider">百度网盘</span><small id="modalLinkStatus">资源链接 · 演示</small></p>
+            <div class="link-value" id="linkValue">https://pan.baidu.com/</div>
+            <div class="link-actions">
+              <button class="primary-action" id="copyLink">复制链接</button>
+              <button class="secondary-action" id="openLink">打开链接</button>
+            </div>
+          </div>
+
+          <p class="modal-tip"><span aria-hidden="true">🕘</span> <span id="modalTip">请点击对应网盘按钮复制或打开链接</span></p>
+          <button class="close-button" id="closeModal">关闭</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite">链接已复制</div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
