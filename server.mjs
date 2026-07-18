@@ -3,6 +3,7 @@ import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from
 import { copyFile, mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { Pool } from "pg";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const SEED_CONFIG_PATH = path.join(ROOT, "data", "config.json");
@@ -16,6 +17,13 @@ const ADMINS_PATH = path.join(DATA_DIR, "admins.json");
 const PORT = Number(process.env.PORT || 8080);
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
+const DATABASE_URL = String(process.env.DATABASE_URL || "").trim();
+const DATABASE_SSL = DATABASE_URL && !/(localhost|127\.0\.0\.1)/i.test(DATABASE_URL)
+  ? { rejectUnauthorized: false }
+  : false;
+const database = DATABASE_URL
+  ? new Pool({ connectionString: DATABASE_URL, ssl: DATABASE_SSL, max: 3, idleTimeoutMillis: 30000 })
+  : null;
 const SESSION_TTL = 12 * 60 * 60 * 1000;
 const SESSION_SECRET = process.env.SESSION_SECRET || createHash("sha256")
   .update(`wp-resource-search:${ADMIN_USERNAME}:${ADMIN_PASSWORD}`)
@@ -38,29 +46,105 @@ const MIME_TYPES = {
   ".ico": "image/x-icon"
 };
 
-await mkdir(DATA_DIR, { recursive: true });
-await mkdir(UPLOAD_DIR, { recursive: true });
-try {
-  await stat(CONFIG_PATH);
-} catch {
-  if (CONFIG_PATH !== SEED_CONFIG_PATH) await copyFile(SEED_CONFIG_PATH, CONFIG_PATH);
-}
-try {
-  await stat(ADMINS_PATH);
-} catch {
-  await copyFile(SEED_ADMINS_PATH, ADMINS_PATH);
+let adminStore;
+let configCache;
+let storageMode = "local";
+
+async function readSeedJson(filePath, fallback) {
+  try {
+    return JSON.parse(await readFile(filePath, "utf8"));
+  } catch {
+    return structuredClone(fallback);
+  }
 }
 
-let adminStore;
-try {
-  const stored = JSON.parse(await readFile(ADMINS_PATH, "utf8"));
+async function initializeLocalStorage(seedConfig, seedAdmins) {
+  await mkdir(DATA_DIR, { recursive: true });
+  await mkdir(UPLOAD_DIR, { recursive: true });
+  try {
+    await stat(CONFIG_PATH);
+  } catch {
+    await writeFile(CONFIG_PATH, JSON.stringify(seedConfig, null, 2) + "\n", "utf8");
+  }
+  try {
+    await stat(ADMINS_PATH);
+  } catch {
+    await writeFile(ADMINS_PATH, JSON.stringify(seedAdmins, null, 2) + "\n", "utf8");
+  }
+  configCache = await readSeedJson(CONFIG_PATH, seedConfig);
+  const storedAdmins = await readSeedJson(ADMINS_PATH, seedAdmins);
   adminStore = {
-    version: Number(stored.version) || 1,
-    admins: Array.isArray(stored.admins) ? stored.admins : []
+    version: Number(storedAdmins.version) || 1,
+    admins: Array.isArray(storedAdmins.admins) ? storedAdmins.admins : []
   };
-} catch {
-  adminStore = { version: 1, admins: [] };
+  storageMode = "local";
+  console.warn("DATABASE_URL 未配置：当前仍使用临时文件，Render 重启后数据会丢失。");
 }
+
+async function initializeDatabaseStorage(seedConfig, seedAdmins) {
+  await database.query(`
+    CREATE TABLE IF NOT EXISTS wp_app_state (
+      state_key TEXT PRIMARY KEY,
+      state_value JSONB NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await database.query(
+    `INSERT INTO wp_app_state (state_key, state_value)
+     VALUES ($1, $2::jsonb)
+     ON CONFLICT (state_key) DO NOTHING`,
+    ["config", JSON.stringify(seedConfig)]
+  );
+  await database.query(
+    `INSERT INTO wp_app_state (state_key, state_value)
+     VALUES ($1, $2::jsonb)
+     ON CONFLICT (state_key) DO NOTHING`,
+    ["admins", JSON.stringify(seedAdmins)]
+  );
+  const result = await database.query(
+    `SELECT state_key, state_value FROM wp_app_state WHERE state_key = ANY($1::text[])`,
+    [["config", "admins"]]
+  );
+  const states = Object.fromEntries(result.rows.map((row) => [row.state_key, row.state_value]));
+  configCache = states.config || seedConfig;
+  const storedAdmins = states.admins || seedAdmins;
+  adminStore = {
+    version: Number(storedAdmins.version) || 1,
+    admins: Array.isArray(storedAdmins.admins) ? storedAdmins.admins : []
+  };
+  storageMode = "postgres";
+  console.log("Persistent PostgreSQL storage connected.");
+}
+
+async function persistDatabaseState(key, value) {
+  await database.query(
+    `INSERT INTO wp_app_state (state_key, state_value, updated_at)
+     VALUES ($1, $2::jsonb, NOW())
+     ON CONFLICT (state_key)
+     DO UPDATE SET state_value = EXCLUDED.state_value, updated_at = NOW()`,
+    [key, JSON.stringify(value)]
+  );
+}
+
+async function initializeStorage() {
+  const seedConfig = await readSeedJson(SEED_CONFIG_PATH, {
+    meta: { version: 1, updatedAt: new Date().toISOString() },
+    settings: {}, theme: {}, categoryOrder: [], sources: [], resources: []
+  });
+  const seedAdmins = await readSeedJson(SEED_ADMINS_PATH, { version: 1, admins: [] });
+  if (database) {
+    try {
+      await initializeDatabaseStorage(seedConfig, seedAdmins);
+      return;
+    } catch (error) {
+      console.error("PostgreSQL initialization failed:", error);
+      throw new Error("数据库连接失败，已停止启动以防止资源继续写入临时磁盘");
+    }
+  }
+  await initializeLocalStorage(seedConfig, seedAdmins);
+}
+
+await initializeStorage();
 
 function json(res, status, payload, extraHeaders = {}) {
   res.writeHead(status, {
@@ -80,7 +164,7 @@ function securityHeaders() {
   };
 }
 
-async function readJsonBody(req, maxBytes = 32 * 1024 * 1024) {
+async function readJsonBody(req, maxBytes = 64 * 1024 * 1024) {
   let total = 0;
   const chunks = [];
   for await (const chunk of req) {
@@ -288,6 +372,10 @@ function validateAccountInput(input, currentId = "") {
 
 async function saveAdminStore() {
   adminStore.version += 1;
+  if (storageMode === "postgres") {
+    await persistDatabaseState("admins", adminStore);
+    return;
+  }
   const temporaryPath = path.join(DATA_DIR, `admins.${randomBytes(5).toString("hex")}.tmp`);
   await writeFile(temporaryPath, JSON.stringify(adminStore, null, 2) + "\n", "utf8");
   await rename(temporaryPath, ADMINS_PATH);
@@ -422,17 +510,23 @@ function normalizeConfig(input, previous = {}) {
 }
 
 async function loadConfig() {
-  return JSON.parse(await readFile(CONFIG_PATH, "utf8"));
+  return structuredClone(configCache);
 }
 
 async function saveConfig(nextConfig) {
   const previous = await loadConfig();
   const normalized = normalizeConfig(nextConfig, previous);
+  if (storageMode === "postgres") {
+    await persistDatabaseState("config", normalized);
+    configCache = structuredClone(normalized);
+    return structuredClone(normalized);
+  }
   const temporaryPath = path.join(DATA_DIR, `config.${randomBytes(5).toString("hex")}.tmp`);
   await copyFile(CONFIG_PATH, BACKUP_PATH);
   await writeFile(temporaryPath, JSON.stringify(normalized, null, 2) + "\n", "utf8");
   await rename(temporaryPath, CONFIG_PATH);
-  return normalized;
+  configCache = structuredClone(normalized);
+  return structuredClone(normalized);
 }
 
 function mergeAuthorizedConfig(input, current, session) {
@@ -459,6 +553,15 @@ function mergeAuthorizedConfig(input, current, session) {
 async function handleApi(req, res, url) {
   if (req.method === "GET" && url.pathname === "/api/config") {
     return json(res, 200, await loadConfig(), securityHeaders());
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/storage-status") {
+    return json(res, 200, {
+      ok: true,
+      mode: storageMode,
+      persistent: storageMode === "postgres",
+      message: storageMode === "postgres" ? "数据库持久化已启用" : "仍在使用临时文件"
+    }, securityHeaders());
   }
 
   if (req.method === "GET" && url.pathname === "/api/auth/status") {
@@ -604,9 +707,9 @@ async function handleApi(req, res, url) {
     if (!isSupportedImageBuffer(buffer, extension)) {
       return json(res, 400, { ok: false, message: "图片文件内容不正确" }, securityHeaders());
     }
-    const filename = `${Date.now()}-${randomBytes(6).toString("hex")}.${extension}`;
-    await writeFile(path.join(UPLOAD_DIR, filename), buffer);
-    return json(res, 200, { ok: true, url: `/uploads/${filename}` }, securityHeaders());
+    const mime = extension === "jpg" ? "jpeg" : extension;
+    const embeddedUrl = `data:image/${mime};base64,${buffer.toString("base64")}`;
+    return json(res, 200, { ok: true, url: embeddedUrl, embedded: true }, securityHeaders());
   }
 
   return json(res, 404, { ok: false, message: "接口不存在" }, securityHeaders());
@@ -672,6 +775,18 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+async function shutdown(signal) {
+  console.log(`${signal} received, shutting down.`);
+  server.close(async () => {
+    if (database) await database.end().catch(() => {});
+    process.exit(0);
+  });
+  setTimeout(() => process.exit(1), 10000).unref();
+}
+
+process.once("SIGTERM", () => shutdown("SIGTERM"));
+process.once("SIGINT", () => shutdown("SIGINT"));
+
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`wp-resource-search running on port ${PORT}`);
+  console.log(`wp-resource-search running on port ${PORT}; storage=${storageMode}`);
 });
