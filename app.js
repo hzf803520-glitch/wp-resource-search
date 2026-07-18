@@ -137,8 +137,6 @@ function posterMarkup(resource, rank) {
       <span class="poster-art" style="--p1:${escapeHtml(colors[0])};--p2:${escapeHtml(colors[1])}">
         ${image}
         ${rank ? `<span class="poster-rank">${escapeHtml(setting("rankPrefix", "TOP"))}${rank}</span>` : ""}
-        <span class="poster-subtitle">${escapeHtml(setting("posterKicker", "高清资源 · 在线更新"))}</span>
-        <span class="poster-title-art">${escapeHtml(resource.artTitle || resource.title)}</span>
       </span>
       <span class="poster-name">${escapeHtml(resource.title)}</span>
     </button>

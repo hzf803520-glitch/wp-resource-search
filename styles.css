@@ -316,10 +316,14 @@ input:focus-visible {
 .poster-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 13px 9px;
+  align-items: start;
+  gap: 18px 9px;
 }
 
 .poster-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   min-width: 0;
   border: 0;
   padding: 0;
@@ -330,7 +334,8 @@ input:focus-visible {
 
 .poster-art {
   position: relative;
-  height: 145px;
+  width: 100%;
+  aspect-ratio: 2 / 3;
   overflow: hidden;
   border-radius: 8px;
   background: linear-gradient(150deg, var(--p1), var(--p2));
@@ -343,7 +348,7 @@ input:focus-visible {
   position: absolute;
   z-index: 1;
   inset: 0;
-  background: linear-gradient(180deg, rgba(6, 8, 18, 0.04) 35%, rgba(6, 8, 18, 0.78) 100%);
+  background: linear-gradient(180deg, rgba(6, 8, 18, 0.08), transparent 24%, transparent 82%, rgba(6, 8, 18, 0.1));
   pointer-events: none;
 }
 
@@ -384,40 +389,15 @@ input:focus-visible {
   z-index: 3;
 }
 
-.poster-title-art {
-  position: absolute;
-  right: 5px;
-  bottom: 11px;
-  left: 5px;
-  color: #fff;
-  font-family: "STKaiti", "KaiTi", serif;
-  font-size: 17px;
-  font-weight: 800;
-  line-height: 1.08;
-  text-align: center;
-  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.48);
-  z-index: 2;
-}
-
-.poster-subtitle {
-  position: absolute;
-  top: 8px;
-  right: 7px;
-  color: rgba(255, 255, 255, 0.84);
-  font-size: 8px;
-  letter-spacing: 0.08em;
-  writing-mode: vertical-rl;
-  z-index: 2;
-}
-
 .poster-name {
   display: -webkit-box;
-  min-height: 37px;
-  margin-top: 7px;
+  height: 36px;
+  margin: 0;
   overflow: hidden;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 18px;
   text-align: center;
+  word-break: break-word;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -693,7 +673,6 @@ body.modal-open {
 }
 
 @media (max-width: 370px) {
-  .poster-art { height: 132px; }
   .content-card { padding-right: 12px; padding-left: 12px; }
   .search-card { padding-right: 13px; padding-left: 13px; }
 }
