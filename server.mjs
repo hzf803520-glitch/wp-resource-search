@@ -1,5 +1,5 @@
 import http from "node:http";
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { copyFile, mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,7 +17,9 @@ const PORT = Number(process.env.PORT || 8080);
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
 const SESSION_TTL = 12 * 60 * 60 * 1000;
-const sessions = new Map();
+const SESSION_SECRET = process.env.SESSION_SECRET || createHash("sha256")
+  .update(`wp-resource-search:${ADMIN_USERNAME}:${ADMIN_PASSWORD}`)
+  .digest("hex");
 const loginAttempts = new Map();
 const LOGIN_WINDOW = 10 * 60 * 1000;
 const LOGIN_LIMIT = 8;
@@ -78,7 +80,7 @@ function securityHeaders() {
   };
 }
 
-async function readJsonBody(req, maxBytes = 8 * 1024 * 1024) {
+async function readJsonBody(req, maxBytes = 32 * 1024 * 1024) {
   let total = 0;
   const chunks = [];
   for await (const chunk of req) {
@@ -102,33 +104,6 @@ function parseCookies(req) {
     cookies[part.slice(0, index).trim()] = decodeURIComponent(part.slice(index + 1).trim());
   }
   return cookies;
-}
-
-function currentSession(req) {
-  const token = parseCookies(req).wp_admin_session;
-  if (!token) return null;
-  const session = sessions.get(token);
-  if (!session || session.expiresAt < Date.now()) {
-    sessions.delete(token);
-    return null;
-  }
-  const principal = session.isRoot ? rootPrincipal() : storedPrincipal(session.userId);
-  if (!principal || !principal.enabled) {
-    sessions.delete(token);
-    return null;
-  }
-  Object.assign(session, principal);
-  session.expiresAt = Date.now() + SESSION_TTL;
-  return { token, ...session };
-}
-
-function requireAdmin(req, res) {
-  const session = currentSession(req);
-  if (!session) {
-    json(res, 401, { ok: false, message: "请先登录后台" }, securityHeaders());
-    return null;
-  }
-  return session;
 }
 
 function safeEqual(left, right) {
@@ -191,6 +166,89 @@ function requirePermission(session, res, permission) {
   return false;
 }
 
+function sessionStamp(principal) {
+  if (principal?.isRoot) {
+    return createHash("sha256")
+      .update(`root:${ADMIN_USERNAME}:${ADMIN_PASSWORD}`)
+      .digest("hex")
+      .slice(0, 32);
+  }
+  const admin = adminStore.admins.find((item) => item.id === principal?.userId);
+  if (!admin) return "";
+  return createHash("sha256")
+    .update(`${admin.id}:${admin.passwordHash}:${admin.updatedAt || ""}:${admin.enabled !== false}`)
+    .digest("hex")
+    .slice(0, 32);
+}
+
+function signSessionPayload(payloadText) {
+  return createHmac("sha256", SESSION_SECRET).update(payloadText).digest("base64url");
+}
+
+function createSessionToken(principal) {
+  const issuedAt = Date.now();
+  const payload = {
+    v: 1,
+    userId: principal.userId,
+    isRoot: Boolean(principal.isRoot),
+    issuedAt,
+    expiresAt: issuedAt + SESSION_TTL,
+    stamp: sessionStamp(principal)
+  };
+  const encoded = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+  return `${encoded}.${signSessionPayload(encoded)}`;
+}
+
+function decodeSessionToken(token) {
+  const [encoded, signature] = String(token || "").split(".");
+  if (!encoded || !signature) return null;
+  const expected = signSessionPayload(encoded);
+  const actualBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+  if (actualBuffer.length !== expectedBuffer.length || !timingSafeEqual(actualBuffer, expectedBuffer)) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
+    if (payload?.v !== 1 || !payload.userId || !Number.isFinite(Number(payload.expiresAt))) return null;
+    if (Number(payload.expiresAt) <= Date.now()) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function sessionCookie(token, maxAgeSeconds = Math.floor(SESSION_TTL / 1000)) {
+  const secure = process.env.RENDER || process.env.NODE_ENV === "production" ? "; Secure" : "";
+  return `wp_admin_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAgeSeconds}${secure}`;
+}
+
+function clearSessionCookie() {
+  const secure = process.env.RENDER || process.env.NODE_ENV === "production" ? "; Secure" : "";
+  return `wp_admin_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${secure}`;
+}
+
+function currentSession(req) {
+  const token = parseCookies(req).wp_admin_session;
+  const payload = decodeSessionToken(token);
+  if (!payload) return null;
+  const principal = payload.isRoot ? rootPrincipal() : storedPrincipal(payload.userId);
+  if (!principal || !principal.enabled) return null;
+  if (!safeEqual(payload.stamp, sessionStamp(principal))) return null;
+  return {
+    token,
+    expiresAt: Number(payload.expiresAt),
+    ...principal
+  };
+}
+
+function requireAdmin(req, res) {
+  const session = currentSession(req);
+  if (!session) {
+    json(res, 401, { ok: false, message: "请先登录后台" }, securityHeaders());
+    return null;
+  }
+  return session;
+}
+
 function hashPassword(password, salt = randomBytes(16).toString("hex")) {
   return `scrypt$${salt}$${scryptSync(String(password), salt, 64).toString("hex")}`;
 }
@@ -212,11 +270,14 @@ function validateNewPassword(password) {
 function validateAccountInput(input, currentId = "") {
   const username = normalizeUsername(input.username);
   if (!/^[a-z0-9._-]{3,32}$/.test(username)) throw new Error("账号需为3-32位字母、数字、点、横线或下划线");
-  const duplicate = username === normalizeUsername(ADMIN_USERNAME) || adminStore.admins.some((item) => item.id !== currentId && normalizeUsername(item.username) === username);
+  const duplicate = username === normalizeUsername(ADMIN_USERNAME)
+    || adminStore.admins.some((item) => item.id !== currentId && normalizeUsername(item.username) === username);
   if (duplicate) throw new Error("管理员账号已存在");
   const permissions = cleanPermissions(input.permissions);
   if (!permissions.length) throw new Error("请至少选择一项权限");
-  if (permissions.includes("uploads") && !permissions.includes("resources")) throw new Error("上传图片权限需同时勾选资源与链接权限");
+  if (permissions.includes("uploads") && !permissions.includes("resources")) {
+    throw new Error("上传图片权限需同时勾选资源与链接权限");
+  }
   return {
     username,
     displayName: cleanText(input.displayName || username, 40),
@@ -232,10 +293,9 @@ async function saveAdminStore() {
   await rename(temporaryPath, ADMINS_PATH);
 }
 
-function revokeUserSessions(userId) {
-  for (const [token, session] of sessions.entries()) {
-    if (session.userId === userId) sessions.delete(token);
-  }
+function revokeUserSessions() {
+  // Stateless signed cookies are automatically invalidated when the account's
+  // password, enabled state or updatedAt value changes.
 }
 
 function accountList() {
@@ -290,7 +350,11 @@ function isSupportedImageBuffer(buffer, extension) {
     return buffer.length > 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
   }
   if (extension === "jpg") return buffer.length > 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
-  if (extension === "webp") return buffer.length > 12 && buffer.subarray(0, 4).toString("ascii") === "RIFF" && buffer.subarray(8, 12).toString("ascii") === "WEBP";
+  if (extension === "webp") {
+    return buffer.length > 12
+      && buffer.subarray(0, 4).toString("ascii") === "RIFF"
+      && buffer.subarray(8, 12).toString("ascii") === "WEBP";
+  }
   return false;
 }
 
@@ -332,7 +396,9 @@ function normalizeConfig(input, previous = {}) {
       rating: Math.max(0, Math.min(10, Number(resource.rating) || 0)),
       update: cleanText(resource.update, 80),
       image: cleanUrl(resource.image),
-      colors: Array.isArray(resource.colors) && resource.colors.length >= 2 ? resource.colors.slice(0, 2).map((color) => /^#[0-9a-f]{6}$/i.test(color) ? color : "#26354f") : ["#26354f", "#7786a5"],
+      colors: Array.isArray(resource.colors) && resource.colors.length >= 2
+        ? resource.colors.slice(0, 2).map((color) => /^#[0-9a-f]{6}$/i.test(color) ? color : "#26354f")
+        : ["#26354f", "#7786a5"],
       links,
       visible: resource.visible !== false
     };
@@ -430,20 +496,17 @@ async function handleApi(req, res, url) {
       return json(res, 401, { ok: false, message: "账号或密码错误" }, securityHeaders());
     }
     loginAttempts.delete(attempt.key);
-    const token = randomBytes(32).toString("hex");
-    sessions.set(token, { ...principal, expiresAt: Date.now() + SESSION_TTL });
+    const token = createSessionToken(principal);
     return json(res, 200, { ok: true, user: publicPrincipal(principal) }, {
       ...securityHeaders(),
-      "Set-Cookie": `wp_admin_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_TTL / 1000}`
+      "Set-Cookie": sessionCookie(token)
     });
   }
 
   if (req.method === "POST" && url.pathname === "/api/auth/logout") {
-    const session = currentSession(req);
-    if (session) sessions.delete(session.token);
     return json(res, 200, { ok: true }, {
       ...securityHeaders(),
-      "Set-Cookie": "wp_admin_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0"
+      "Set-Cookie": clearSessionCookie()
     });
   }
 
@@ -550,6 +613,11 @@ async function handleApi(req, res, url) {
 }
 
 async function serveStatic(req, res, url) {
+  if (!['GET', 'HEAD'].includes(req.method || 'GET')) {
+    res.writeHead(405, { ...securityHeaders(), Allow: 'GET, HEAD' });
+    return res.end('Method not allowed');
+  }
+
   let pathname = decodeURIComponent(url.pathname);
   if (pathname === "/") pathname = "/index.html";
   if (pathname === "/admin" || pathname === "/admin/") pathname = "/admin.html";
@@ -577,29 +645,33 @@ async function serveStatic(req, res, url) {
       ...securityHeaders(),
       "Content-Type": MIME_TYPES[extension] || "application/octet-stream",
       "Content-Length": content.length,
-      "Cache-Control": pathname.startsWith("/uploads/") || pathname.startsWith("/assets/") ? "public, max-age=86400" : "no-cache"
+      "Cache-Control": pathname.startsWith("/uploads/") || pathname.startsWith("/assets/")
+        ? "public, max-age=86400"
+        : "no-cache"
     });
-    res.end(content);
+    if (req.method === 'HEAD') return res.end();
+    return res.end(content);
   } catch {
-    res.writeHead(404, { ...securityHeaders(), "Content-Type": "text/plain; charset=utf-8" });
-    res.end("页面不存在");
+    res.writeHead(404, securityHeaders());
+    return res.end("Not found");
   }
 }
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
   try {
-    if (url.pathname.startsWith("/api/")) await handleApi(req, res, url);
-    else await serveStatic(req, res, url);
+    if (url.pathname.startsWith("/api/")) {
+      await handleApi(req, res, url);
+    } else {
+      await serveStatic(req, res, url);
+    }
   } catch (error) {
     console.error(error);
-    if (!res.headersSent) json(res, 500, { ok: false, message: error.message || "服务器处理失败" }, securityHeaders());
-    else res.end();
+    if (res.headersSent) return res.end();
+    json(res, 500, { ok: false, message: error.message || "服务器内部错误" }, securityHeaders());
   }
 });
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`前台: http://localhost:${PORT}`);
-  console.log(`后台: http://localhost:${PORT}/admin`);
-  if (ADMIN_PASSWORD === "admin123") console.log("提示: 当前使用默认后台密码，上线前请设置 ADMIN_PASSWORD 环境变量。");
+  console.log(`wp-resource-search running on port ${PORT}`);
 });
