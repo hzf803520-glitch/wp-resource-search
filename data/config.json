@@ -1,7 +1,7 @@
 {
   "meta": {
-    "version": 3,
-    "updatedAt": "2026-07-18T02:42:01.603Z"
+    "version": 4,
+    "updatedAt": "2026-07-18T05:01:44.000Z"
   },
   "settings": {
     "pageTitle": "网盘资源搜索",
@@ -39,9 +39,9 @@
     "offlineDescription": "请先运行后台服务，再刷新此页面。"
   },
   "theme": {
-    "accent": "#ff725f",
-    "accentSecondary": "#ff8a59",
-    "pageBackground": "#eaf8fa"
+    "accent": "#ed61ff",
+    "accentSecondary": "#6aff57",
+    "pageBackground": "#ebe6f9"
   },
   "categoryOrder": [
     "电影",
@@ -130,14 +130,14 @@
       "update": "更新208",
       "image": "/assets/posters/fantasy-jade.webp",
       "colors": [
-        "#111f4d",
+        "#4b111a",
         "#6550c8"
       ],
       "links": {
         "baidu": "https://pan.baidu.com/",
         "quark": "https://pan.quark.cn/"
       },
-      "visible": true
+      "visible": false
     },
     {
       "id": 5,
