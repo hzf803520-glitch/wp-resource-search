@@ -57,7 +57,7 @@
         <div class="side-summary">
           <small>当前资源</small>
           <strong id="resourceCount">0</strong>
-          <span>保存后前台立即生效</span>
+          <span>修改后自动保存并同步</span>
         </div>
         <button class="logout-button" type="button" id="logoutButton">退出登录</button>
       </aside>
@@ -78,7 +78,7 @@
         <div class="content-area">
           <section class="admin-panel active" id="copyPanel" data-required-permission="content">
             <div class="panel-intro">
-              <div><span class="eyebrow">COPYWRITING</span><h2>修改前台全部文案</h2><p>输入框内容会以纯文本显示，保存后刷新前台即可看到变化。</p></div>
+              <div><span class="eyebrow">COPYWRITING</span><h2>修改前台全部文案</h2><p>输入框内容会以纯文本显示，修改后自动保存，刷新前台即可看到变化。</p></div>
             </div>
             <div id="settingsEditor"></div>
           </section>
@@ -148,6 +148,7 @@
 
     <div class="admin-toast" id="adminToast" role="status" aria-live="polite"></div>
     <datalist id="categorySuggestions"></datalist>
+    <script src="./admin-persistence.js"></script>
     <script src="./admin.js"></script>
   </body>
 </html>
