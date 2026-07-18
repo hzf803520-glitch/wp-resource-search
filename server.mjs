@@ -1,16 +1,18 @@
 import http from "node:http";
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { copyFile, mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const SEED_CONFIG_PATH = path.join(ROOT, "data", "config.json");
+const SEED_ADMINS_PATH = path.join(ROOT, "data", "admins.seed.json");
 const PERSIST_ROOT = process.env.PERSIST_ROOT ? path.resolve(process.env.PERSIST_ROOT) : ROOT;
 const DATA_DIR = path.join(PERSIST_ROOT, "data");
 const UPLOAD_DIR = path.join(PERSIST_ROOT, "uploads");
 const CONFIG_PATH = path.join(DATA_DIR, "config.json");
 const BACKUP_PATH = path.join(DATA_DIR, "config.backup.json");
+const ADMINS_PATH = path.join(DATA_DIR, "admins.json");
 const PORT = Number(process.env.PORT || 8080);
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
@@ -19,6 +21,7 @@ const sessions = new Map();
 const loginAttempts = new Map();
 const LOGIN_WINDOW = 10 * 60 * 1000;
 const LOGIN_LIMIT = 8;
+const PERMISSIONS = ["content", "appearance", "resources", "uploads", "admins"];
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -39,6 +42,22 @@ try {
   await stat(CONFIG_PATH);
 } catch {
   if (CONFIG_PATH !== SEED_CONFIG_PATH) await copyFile(SEED_CONFIG_PATH, CONFIG_PATH);
+}
+try {
+  await stat(ADMINS_PATH);
+} catch {
+  await copyFile(SEED_ADMINS_PATH, ADMINS_PATH);
+}
+
+let adminStore;
+try {
+  const stored = JSON.parse(await readFile(ADMINS_PATH, "utf8"));
+  adminStore = {
+    version: Number(stored.version) || 1,
+    admins: Array.isArray(stored.admins) ? stored.admins : []
+  };
+} catch {
+  adminStore = { version: 1, admins: [] };
 }
 
 function json(res, status, payload, extraHeaders = {}) {
@@ -93,6 +112,12 @@ function currentSession(req) {
     sessions.delete(token);
     return null;
   }
+  const principal = session.isRoot ? rootPrincipal() : storedPrincipal(session.userId);
+  if (!principal || !principal.enabled) {
+    sessions.delete(token);
+    return null;
+  }
+  Object.assign(session, principal);
   session.expiresAt = Date.now() + SESSION_TTL;
   return { token, ...session };
 }
@@ -110,6 +135,123 @@ function safeEqual(left, right) {
   const a = createHash("sha256").update(String(left)).digest();
   const b = createHash("sha256").update(String(right)).digest();
   return timingSafeEqual(a, b);
+}
+
+function normalizeUsername(value) {
+  return cleanText(value, 32).toLowerCase();
+}
+
+function cleanPermissions(value) {
+  const requested = Array.isArray(value) ? value : [];
+  return [...new Set(requested.filter((permission) => PERMISSIONS.includes(permission)))];
+}
+
+function rootPrincipal() {
+  return {
+    userId: "root",
+    username: ADMIN_USERNAME,
+    displayName: "主管理员",
+    permissions: [...PERMISSIONS],
+    enabled: true,
+    isRoot: true
+  };
+}
+
+function storedPrincipal(userId) {
+  const admin = adminStore.admins.find((item) => item.id === userId);
+  if (!admin) return null;
+  return {
+    userId: admin.id,
+    username: admin.username,
+    displayName: admin.displayName,
+    permissions: cleanPermissions(admin.permissions),
+    enabled: admin.enabled !== false,
+    isRoot: false
+  };
+}
+
+function publicPrincipal(principal) {
+  return {
+    id: principal.userId,
+    username: principal.username,
+    displayName: principal.displayName,
+    permissions: principal.permissions,
+    enabled: principal.enabled,
+    isRoot: principal.isRoot
+  };
+}
+
+function hasPermission(session, permission) {
+  return Boolean(session?.isRoot || session?.permissions?.includes(permission));
+}
+
+function requirePermission(session, res, permission) {
+  if (hasPermission(session, permission)) return true;
+  json(res, 403, { ok: false, message: "当前账号没有此操作权限" }, securityHeaders());
+  return false;
+}
+
+function hashPassword(password, salt = randomBytes(16).toString("hex")) {
+  return `scrypt$${salt}$${scryptSync(String(password), salt, 64).toString("hex")}`;
+}
+
+function verifyPassword(password, storedHash) {
+  const [algorithm, salt, expectedHex] = String(storedHash || "").split("$");
+  if (algorithm !== "scrypt" || !salt || !/^[0-9a-f]{128}$/i.test(expectedHex || "")) return false;
+  const actual = scryptSync(String(password), salt, 64);
+  const expected = Buffer.from(expectedHex, "hex");
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+function validateNewPassword(password) {
+  const value = String(password || "");
+  if (value.length < 8 || value.length > 128) throw new Error("密码长度需为8-128位");
+  return value;
+}
+
+function validateAccountInput(input, currentId = "") {
+  const username = normalizeUsername(input.username);
+  if (!/^[a-z0-9._-]{3,32}$/.test(username)) throw new Error("账号需为3-32位字母、数字、点、横线或下划线");
+  const duplicate = username === normalizeUsername(ADMIN_USERNAME) || adminStore.admins.some((item) => item.id !== currentId && normalizeUsername(item.username) === username);
+  if (duplicate) throw new Error("管理员账号已存在");
+  const permissions = cleanPermissions(input.permissions);
+  if (!permissions.length) throw new Error("请至少选择一项权限");
+  if (permissions.includes("uploads") && !permissions.includes("resources")) throw new Error("上传图片权限需同时勾选资源与链接权限");
+  return {
+    username,
+    displayName: cleanText(input.displayName || username, 40),
+    permissions,
+    enabled: input.enabled !== false
+  };
+}
+
+async function saveAdminStore() {
+  adminStore.version += 1;
+  const temporaryPath = path.join(DATA_DIR, `admins.${randomBytes(5).toString("hex")}.tmp`);
+  await writeFile(temporaryPath, JSON.stringify(adminStore, null, 2) + "\n", "utf8");
+  await rename(temporaryPath, ADMINS_PATH);
+}
+
+function revokeUserSessions(userId) {
+  for (const [token, session] of sessions.entries()) {
+    if (session.userId === userId) sessions.delete(token);
+  }
+}
+
+function accountList() {
+  return [
+    { ...publicPrincipal(rootPrincipal()), createdAt: null, updatedAt: null },
+    ...adminStore.admins.map((admin) => ({
+      id: admin.id,
+      username: admin.username,
+      displayName: admin.displayName,
+      permissions: cleanPermissions(admin.permissions),
+      enabled: admin.enabled !== false,
+      isRoot: false,
+      createdAt: admin.createdAt,
+      updatedAt: admin.updatedAt
+    }))
+  ];
 }
 
 function loginAttemptState(req) {
@@ -219,13 +361,39 @@ async function saveConfig(nextConfig) {
   return normalized;
 }
 
+function mergeAuthorizedConfig(input, current, session) {
+  const next = structuredClone(current);
+  let changed = false;
+  if (hasPermission(session, "content")) {
+    next.settings = input.settings;
+    changed = true;
+  }
+  if (hasPermission(session, "appearance")) {
+    next.theme = input.theme;
+    next.categoryOrder = input.categoryOrder;
+    next.sources = input.sources;
+    changed = true;
+  }
+  if (hasPermission(session, "resources")) {
+    next.resources = input.resources;
+    changed = true;
+  }
+  if (!changed) throw new Error("当前账号没有内容修改权限");
+  return next;
+}
+
 async function handleApi(req, res, url) {
   if (req.method === "GET" && url.pathname === "/api/config") {
     return json(res, 200, await loadConfig(), securityHeaders());
   }
 
   if (req.method === "GET" && url.pathname === "/api/auth/status") {
-    return json(res, 200, { ok: true, authenticated: Boolean(currentSession(req)), username: ADMIN_USERNAME }, securityHeaders());
+    const session = currentSession(req);
+    return json(res, 200, {
+      ok: true,
+      authenticated: Boolean(session),
+      user: session ? publicPrincipal(session) : null
+    }, securityHeaders());
   }
 
   if (req.method === "POST" && url.pathname === "/api/auth/login") {
@@ -234,14 +402,29 @@ async function handleApi(req, res, url) {
       return json(res, 429, { ok: false, message: "尝试次数过多，请稍后再试" }, securityHeaders());
     }
     const body = await readJsonBody(req, 64 * 1024);
-    if (!safeEqual(body.username, ADMIN_USERNAME) || !safeEqual(body.password, ADMIN_PASSWORD)) {
+    const username = normalizeUsername(body.username);
+    let principal = null;
+    let passwordMatches = false;
+    if (safeEqual(username, normalizeUsername(ADMIN_USERNAME))) {
+      principal = rootPrincipal();
+      passwordMatches = safeEqual(body.password, ADMIN_PASSWORD);
+    } else {
+      const admin = adminStore.admins.find((item) => normalizeUsername(item.username) === username);
+      if (admin) {
+        principal = storedPrincipal(admin.id);
+        passwordMatches = verifyPassword(body.password, admin.passwordHash);
+      } else {
+        safeEqual(body.password, "invalid-login-attempt");
+      }
+    }
+    if (!principal || !principal.enabled || !passwordMatches) {
       recordLoginFailure(attempt);
       return json(res, 401, { ok: false, message: "账号或密码错误" }, securityHeaders());
     }
     loginAttempts.delete(attempt.key);
     const token = randomBytes(32).toString("hex");
-    sessions.set(token, { username: ADMIN_USERNAME, expiresAt: Date.now() + SESSION_TTL });
-    return json(res, 200, { ok: true, username: ADMIN_USERNAME }, {
+    sessions.set(token, { ...principal, expiresAt: Date.now() + SESSION_TTL });
+    return json(res, 200, { ok: true, user: publicPrincipal(principal) }, {
       ...securityHeaders(),
       "Set-Cookie": `wp_admin_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_TTL / 1000}`
     });
@@ -256,19 +439,89 @@ async function handleApi(req, res, url) {
     });
   }
 
-  if (url.pathname.startsWith("/api/admin/") && !requireAdmin(req, res)) return;
+  let adminSession = null;
+  if (url.pathname.startsWith("/api/admin/")) {
+    adminSession = requireAdmin(req, res);
+    if (!adminSession) return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/admin/accounts") {
+    if (!requirePermission(adminSession, res, "admins")) return;
+    return json(res, 200, { ok: true, accounts: accountList(), permissions: PERMISSIONS }, securityHeaders());
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/admin/accounts") {
+    if (!requirePermission(adminSession, res, "admins")) return;
+    const body = await readJsonBody(req, 128 * 1024);
+    let account;
+    let passwordHash;
+    try {
+      account = validateAccountInput(body);
+      passwordHash = hashPassword(validateNewPassword(body.password));
+    } catch (error) {
+      return json(res, 400, { ok: false, message: error.message }, securityHeaders());
+    }
+    const now = new Date().toISOString();
+    adminStore.admins.push({
+      id: randomBytes(12).toString("hex"),
+      ...account,
+      passwordHash,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: adminSession.username
+    });
+    await saveAdminStore();
+    return json(res, 201, { ok: true, accounts: accountList(), message: "管理员账号已添加" }, securityHeaders());
+  }
+
+  const accountMatch = url.pathname.match(/^\/api\/admin\/accounts\/([a-f0-9]{24})$/);
+  if (accountMatch && req.method === "PUT") {
+    if (!requirePermission(adminSession, res, "admins")) return;
+    const account = adminStore.admins.find((item) => item.id === accountMatch[1]);
+    if (!account) return json(res, 404, { ok: false, message: "管理员账号不存在" }, securityHeaders());
+    const body = await readJsonBody(req, 128 * 1024);
+    let updates;
+    let passwordHash = "";
+    try {
+      updates = validateAccountInput(body, account.id);
+      if (String(body.password || "")) passwordHash = hashPassword(validateNewPassword(body.password));
+    } catch (error) {
+      return json(res, 400, { ok: false, message: error.message }, securityHeaders());
+    }
+    Object.assign(account, updates);
+    if (passwordHash) account.passwordHash = passwordHash;
+    account.updatedAt = new Date().toISOString();
+    await saveAdminStore();
+    revokeUserSessions(account.id);
+    return json(res, 200, { ok: true, accounts: accountList(), message: "管理员账号已更新" }, securityHeaders());
+  }
+
+  if (accountMatch && req.method === "DELETE") {
+    if (!requirePermission(adminSession, res, "admins")) return;
+    const index = adminStore.admins.findIndex((item) => item.id === accountMatch[1]);
+    if (index === -1) return json(res, 404, { ok: false, message: "管理员账号不存在" }, securityHeaders());
+    const [removed] = adminStore.admins.splice(index, 1);
+    await saveAdminStore();
+    revokeUserSessions(removed.id);
+    return json(res, 200, { ok: true, accounts: accountList(), message: "管理员账号已删除" }, securityHeaders());
+  }
 
   if (req.method === "GET" && url.pathname === "/api/admin/config") {
     return json(res, 200, await loadConfig(), securityHeaders());
   }
 
   if (req.method === "PUT" && url.pathname === "/api/admin/config") {
+    if (!["content", "appearance", "resources"].some((permission) => hasPermission(adminSession, permission))) {
+      return json(res, 403, { ok: false, message: "当前账号没有内容修改权限" }, securityHeaders());
+    }
     const body = await readJsonBody(req);
-    const saved = await saveConfig(body);
+    const current = await loadConfig();
+    const saved = await saveConfig(mergeAuthorizedConfig(body, current, adminSession));
     return json(res, 200, { ok: true, config: saved, message: "保存成功，前台已更新" }, securityHeaders());
   }
 
   if (req.method === "POST" && url.pathname === "/api/admin/upload") {
+    if (!requirePermission(adminSession, res, "uploads")) return;
     const body = await readJsonBody(req);
     const match = String(body.dataUrl || "").match(/^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$/);
     if (!match) return json(res, 400, { ok: false, message: "仅支持PNG、JPG和WEBP图片" }, securityHeaders());

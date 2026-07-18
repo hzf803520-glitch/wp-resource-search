@@ -1,5 +1,7 @@
 const state = {
   config: null,
+  session: null,
+  accounts: [],
   dirty: false,
   saving: false,
   filter: "",
@@ -27,6 +29,15 @@ const els = {
   filteredCount: document.querySelector("#filteredCount"),
   resourcesEditor: document.querySelector("#resourcesEditor"),
   addResourceButton: document.querySelector("#addResourceButton"),
+  currentAdminName: document.querySelector("#currentAdminName"),
+  currentAdminRole: document.querySelector("#currentAdminRole"),
+  addAdminForm: document.querySelector("#addAdminForm"),
+  newAdminUsername: document.querySelector("#newAdminUsername"),
+  newAdminDisplayName: document.querySelector("#newAdminDisplayName"),
+  newAdminPassword: document.querySelector("#newAdminPassword"),
+  newAdminEnabled: document.querySelector("#newAdminEnabled"),
+  adminAccountCount: document.querySelector("#adminAccountCount"),
+  adminAccountsList: document.querySelector("#adminAccountsList"),
   adminToast: document.querySelector("#adminToast")
 };
 
@@ -69,6 +80,18 @@ const themeFields = [
   ["accentSecondary", "渐变辅助色"],
   ["pageBackground", "页面背景色"]
 ];
+
+const permissionMeta = {
+  content: ["全站文案", "修改标题、提示语和弹窗文案"],
+  appearance: ["视觉与分类", "修改主题、分类和网盘来源"],
+  resources: ["资源与链接", "新增、编辑和删除资源链接"],
+  uploads: ["上传图片", "上传新的资源海报图片"],
+  admins: ["管理员管理", "添加账号并分配权限"]
+};
+
+function can(permission) {
+  return Boolean(state.session?.isRoot || state.session?.permissions?.includes(permission));
+}
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -115,11 +138,54 @@ function showLogin() {
   setTimeout(() => els.loginPassword.focus(), 0);
 }
 
+function activatePanel(button) {
+  if (!button || button.hidden) return;
+  document.querySelectorAll("[data-panel-target]").forEach((item) => item.classList.toggle("active", item === button));
+  document.querySelectorAll(".admin-panel").forEach((panel) => {
+    const active = panel.id === button.dataset.panelTarget;
+    panel.hidden = !active;
+    panel.classList.toggle("active", active);
+  });
+  els.pageHeading.textContent = button.textContent.trim();
+  const permission = button.dataset.permission;
+  els.saveButton.hidden = !["content", "appearance", "resources"].includes(permission) || !can(permission);
+  els.saveStatus.hidden = els.saveButton.hidden;
+}
+
+function applyPermissions() {
+  els.currentAdminName.textContent = state.session?.displayName || state.session?.username || "管理员";
+  els.currentAdminRole.textContent = state.session?.isRoot ? "主管理员 · 全部权限" : `${state.session?.permissions?.length || 0} 项权限`;
+  const buttons = [...document.querySelectorAll("[data-panel-target]")];
+  buttons.forEach((button) => {
+    button.hidden = !can(button.dataset.permission);
+  });
+  document.querySelectorAll("[data-required-permission]").forEach((panel) => {
+    if (!can(panel.dataset.requiredPermission)) {
+      panel.hidden = true;
+      panel.classList.remove("active");
+    }
+  });
+  const active = buttons.find((button) => !button.hidden && button.classList.contains("active")) || buttons.find((button) => !button.hidden);
+  activatePanel(active);
+}
+
+async function loadAccounts() {
+  if (!can("admins")) return;
+  const result = await api("/api/admin/accounts");
+  state.accounts = result.accounts || [];
+  renderAccounts();
+}
+
 async function showAdmin() {
+  const status = await api("/api/auth/status");
+  if (!status.authenticated || !status.user) return showLogin();
+  state.session = status.user;
   state.config = await api("/api/admin/config");
   els.loginView.hidden = true;
   els.adminView.hidden = false;
   renderAll();
+  applyPermissions();
+  await loadAccounts();
   markSaved();
 }
 
@@ -181,7 +247,7 @@ function resourceMarkup(resource, index) {
         <div class="resource-layout">
           <div class="poster-control">
             <div class="poster-preview" style="background:linear-gradient(145deg,${escapeHtml(colors[0])},${escapeHtml(colors[1])})">${image}</div>
-            <label class="upload-button">上传新海报<input type="file" accept="image/png,image/jpeg,image/webp" data-upload-poster /></label>
+            ${can("uploads") ? `<label class="upload-button">上传新海报<input type="file" accept="image/png,image/jpeg,image/webp" data-upload-poster /></label>` : `<p class="upload-permission-note">当前账号无图片上传权限</p>`}
             <label class="field"><span>图片地址</span><input data-resource-field="image" value="${escapeHtml(resource.image)}" /></label>
           </div>
           <div class="resource-fields">
@@ -215,6 +281,59 @@ function renderResources() {
   els.resourcesEditor.innerHTML = entries.length ? entries.map(({ resource, index }) => resourceMarkup(resource, index)).join("") : `<div class="empty-resources">没有找到匹配的资源</div>`;
   els.resourceCount.textContent = all.length;
   els.filteredCount.textContent = `共 ${entries.length} 条`;
+}
+
+function permissionOptions(account, disabled = false) {
+  return Object.entries(permissionMeta).map(([key, [label, description]]) => `
+    <label>
+      <input type="checkbox" value="${key}" data-account-permission ${account.permissions?.includes(key) ? "checked" : ""} ${disabled ? "disabled" : ""} />
+      <span><strong>${escapeHtml(label)}</strong><small>${escapeHtml(description)}</small></span>
+    </label>
+  `).join("");
+}
+
+function accountMarkup(account) {
+  const avatar = (account.displayName || account.username || "管").slice(0, 1).toUpperCase();
+  const stateLabel = account.enabled ? "已启用" : "已停用";
+  if (account.isRoot) {
+    return `
+      <article class="admin-account-card root-account" data-account-id="root">
+        <div class="account-card-head">
+          <div class="account-identity"><span class="account-avatar">${escapeHtml(avatar)}</span><div><strong>${escapeHtml(account.displayName)}</strong><span>@${escapeHtml(account.username)} · 主管理员</span></div></div>
+          <span class="account-state">${stateLabel}</span>
+        </div>
+        <div class="account-card-body">
+          <div class="root-account-note">主管理员由部署环境保护，始终拥有全部权限，不能在网页后台停用或删除。</div>
+          <div class="account-permissions"><div class="permission-grid">${permissionOptions(account, true)}</div></div>
+        </div>
+      </article>`;
+  }
+  return `
+    <article class="admin-account-card" data-account-id="${escapeHtml(account.id)}">
+      <div class="account-card-head">
+        <div class="account-identity"><span class="account-avatar">${escapeHtml(avatar)}</span><div><strong>${escapeHtml(account.displayName)}</strong><span>@${escapeHtml(account.username)}</span></div></div>
+        <span class="account-state${account.enabled ? "" : " disabled"}">${stateLabel}</span>
+      </div>
+      <div class="account-card-body">
+        <div class="account-edit-grid">
+          <label class="field"><span>登录账号</span><input data-account-field="username" value="${escapeHtml(account.username)}" /></label>
+          <label class="field"><span>显示名称</span><input data-account-field="displayName" value="${escapeHtml(account.displayName)}" /></label>
+          <label class="field"><span>重置密码</span><input data-account-field="password" type="password" autocomplete="new-password" placeholder="不修改请留空" /></label>
+        </div>
+        <fieldset class="permission-fieldset account-permissions"><legend>功能权限</legend><div class="permission-grid">${permissionOptions(account)}</div></fieldset>
+        <label class="account-enabled"><input type="checkbox" data-account-enabled ${account.enabled ? "checked" : ""} /><span>启用这个管理员账号</span></label>
+        <div class="account-card-actions">
+          <button class="save-account" type="button" data-account-action="save">保存账号与权限</button>
+          <button class="delete-account" type="button" data-account-action="delete">删除管理员</button>
+        </div>
+      </div>
+    </article>`;
+}
+
+function renderAccounts() {
+  if (!els.adminAccountsList) return;
+  els.adminAccountCount.textContent = `共 ${state.accounts.length} 个账号`;
+  els.adminAccountsList.innerHTML = state.accounts.map(accountMarkup).join("");
 }
 
 function renderAll() {
@@ -311,6 +430,94 @@ function addResource() {
   markDirty();
 }
 
+function selectedPermissions(container, selector) {
+  return [...container.querySelectorAll(`${selector}:checked`)].map((input) => input.value);
+}
+
+async function addAdminAccount(event) {
+  event.preventDefault();
+  const submit = els.addAdminForm.querySelector("button[type=submit]");
+  submit.disabled = true;
+  submit.textContent = "正在添加...";
+  try {
+    const result = await api("/api/admin/accounts", {
+      method: "POST",
+      body: JSON.stringify({
+        username: els.newAdminUsername.value,
+        displayName: els.newAdminDisplayName.value,
+        password: els.newAdminPassword.value,
+        enabled: els.newAdminEnabled.checked,
+        permissions: selectedPermissions(els.addAdminForm, "[data-new-permission]")
+      })
+    });
+    state.accounts = result.accounts || [];
+    renderAccounts();
+    els.addAdminForm.reset();
+    els.newAdminEnabled.checked = true;
+    els.addAdminForm.querySelector('[data-new-permission][value="content"]').checked = true;
+    els.addAdminForm.querySelector('[data-new-permission][value="resources"]').checked = true;
+    showToast(result.message || "管理员账号已添加");
+  } catch (error) {
+    showToast(error.message, "error");
+  } finally {
+    submit.disabled = false;
+    submit.textContent = "+ 添加管理员账号";
+  }
+}
+
+async function saveAdminAccount(card) {
+  const id = card.dataset.accountId;
+  const button = card.querySelector('[data-account-action="save"]');
+  button.disabled = true;
+  button.textContent = "正在保存...";
+  try {
+    const result = await api(`/api/admin/accounts/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        username: card.querySelector('[data-account-field="username"]').value,
+        displayName: card.querySelector('[data-account-field="displayName"]').value,
+        password: card.querySelector('[data-account-field="password"]').value,
+        enabled: card.querySelector("[data-account-enabled]").checked,
+        permissions: selectedPermissions(card, "[data-account-permission]")
+      })
+    });
+    state.accounts = result.accounts || [];
+    renderAccounts();
+    showToast(result.message || "管理员账号已更新");
+    if (state.session?.id === id) {
+      state.config = null;
+      state.session = null;
+      showLogin();
+    }
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = "保存账号与权限";
+    showToast(error.message, "error");
+  }
+}
+
+async function deleteAdminAccount(card) {
+  const id = card.dataset.accountId;
+  const account = state.accounts.find((item) => item.id === id);
+  if (!account || !confirm(`确定删除管理员“${account.displayName || account.username}”吗？`)) return;
+  const button = card.querySelector('[data-account-action="delete"]');
+  button.disabled = true;
+  try {
+    const result = await api(`/api/admin/accounts/${id}`, { method: "DELETE" });
+    state.accounts = result.accounts || [];
+    renderAccounts();
+    showToast(result.message || "管理员账号已删除");
+    if (state.session?.id === id) {
+      state.config = null;
+      state.session = null;
+      showLogin();
+    }
+  } catch (error) {
+    button.disabled = false;
+    showToast(error.message, "error");
+  }
+}
+
 async function saveConfig() {
   if (state.saving) return;
   state.saving = true;
@@ -352,19 +559,13 @@ els.loginForm.addEventListener("submit", async (event) => {
 els.logoutButton.addEventListener("click", async () => {
   await api("/api/auth/logout", { method: "POST", body: "{}" }).catch(() => {});
   state.config = null;
+  state.session = null;
+  state.accounts = [];
   showLogin();
 });
 
 document.querySelectorAll("[data-panel-target]").forEach((button) => {
-  button.addEventListener("click", () => {
-    document.querySelectorAll("[data-panel-target]").forEach((item) => item.classList.toggle("active", item === button));
-    document.querySelectorAll(".admin-panel").forEach((panel) => {
-      const active = panel.id === button.dataset.panelTarget;
-      panel.hidden = !active;
-      panel.classList.toggle("active", active);
-    });
-    els.pageHeading.textContent = button.textContent.trim();
-  });
+  button.addEventListener("click", () => activatePanel(button));
 });
 
 document.addEventListener("input", (event) => {
@@ -423,6 +624,13 @@ document.addEventListener("input", (event) => {
 
 document.addEventListener("change", (event) => {
   const target = event.target;
+  if (target.matches('[data-new-permission][value="uploads"]') && target.checked) {
+    els.addAdminForm.querySelector('[data-new-permission][value="resources"]').checked = true;
+  }
+  if (target.matches('[data-account-permission][value="uploads"]') && target.checked) {
+    const resourcePermission = target.closest("[data-account-id]")?.querySelector('[data-account-permission][value="resources"]');
+    if (resourcePermission) resourcePermission.checked = true;
+  }
   if (target.matches("[data-upload-poster]")) uploadPoster(target);
   if (target.matches("[data-resource-visible]")) {
     const container = target.closest("[data-resource-index]");
@@ -432,6 +640,14 @@ document.addEventListener("change", (event) => {
 });
 
 document.addEventListener("click", (event) => {
+  const accountAction = event.target.closest("[data-account-action]")?.dataset.accountAction;
+  const accountCard = event.target.closest("[data-account-id]");
+  if (accountAction && accountCard) {
+    if (accountAction === "save") saveAdminAccount(accountCard);
+    if (accountAction === "delete") deleteAdminAccount(accountCard);
+    return;
+  }
+
   const action = event.target.closest("[data-action]")?.dataset.action;
   if (!action || !state.config) return;
 
@@ -474,6 +690,7 @@ document.addEventListener("click", (event) => {
 els.addSourceButton.addEventListener("click", addSource);
 els.addResourceButton.addEventListener("click", addResource);
 els.saveButton.addEventListener("click", saveConfig);
+els.addAdminForm.addEventListener("submit", addAdminAccount);
 
 window.addEventListener("beforeunload", (event) => {
   if (!state.dirty) return;

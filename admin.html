@@ -44,10 +44,16 @@
           <div><strong>内容后台</strong><small>Content Console</small></div>
         </a>
         <nav class="side-nav" aria-label="后台功能">
-          <button class="active" type="button" data-panel-target="copyPanel"><span>Aa</span>全站文案</button>
-          <button type="button" data-panel-target="visualPanel"><span>◐</span>视觉与分类</button>
-          <button type="button" data-panel-target="resourcePanel"><span>▦</span>资源与图片</button>
+          <button class="active" type="button" data-panel-target="copyPanel" data-permission="content"><span>Aa</span>全站文案</button>
+          <button type="button" data-panel-target="visualPanel" data-permission="appearance"><span>◐</span>视觉与分类</button>
+          <button type="button" data-panel-target="resourcePanel" data-permission="resources"><span>▦</span>资源与图片</button>
+          <button type="button" data-panel-target="accountPanel" data-permission="admins"><span>♙</span>管理员权限</button>
         </nav>
+        <div class="side-account">
+          <small>当前账号</small>
+          <strong id="currentAdminName">管理员</strong>
+          <span id="currentAdminRole">权限加载中</span>
+        </div>
         <div class="side-summary">
           <small>当前资源</small>
           <strong id="resourceCount">0</strong>
@@ -70,14 +76,14 @@
         </header>
 
         <div class="content-area">
-          <section class="admin-panel active" id="copyPanel">
+          <section class="admin-panel active" id="copyPanel" data-required-permission="content">
             <div class="panel-intro">
               <div><span class="eyebrow">COPYWRITING</span><h2>修改前台全部文案</h2><p>输入框内容会以纯文本显示，保存后刷新前台即可看到变化。</p></div>
             </div>
             <div id="settingsEditor"></div>
           </section>
 
-          <section class="admin-panel" id="visualPanel" hidden>
+          <section class="admin-panel" id="visualPanel" data-required-permission="appearance" hidden>
             <div class="panel-intro">
               <div><span class="eyebrow">APPEARANCE</span><h2>主题、分类与网盘来源</h2><p>统一调整前台主色，控制分类顺序和网盘按钮。</p></div>
             </div>
@@ -95,7 +101,7 @@
             </div>
           </section>
 
-          <section class="admin-panel" id="resourcePanel" hidden>
+          <section class="admin-panel" id="resourcePanel" data-required-permission="resources" hidden>
             <div class="panel-intro resource-intro">
               <div><span class="eyebrow">RESOURCES</span><h2>资源文案、海报与链接</h2><p>每个资源都能单独修改封面、标题、热度、分类和网盘地址。</p></div>
               <button class="add-resource-button" type="button" id="addResourceButton">+ 新增资源</button>
@@ -105,6 +111,36 @@
               <span id="filteredCount">共 0 条</span>
             </div>
             <div class="resource-editor-list" id="resourcesEditor"></div>
+          </section>
+
+          <section class="admin-panel" id="accountPanel" data-required-permission="admins" hidden>
+            <div class="panel-intro account-intro">
+              <div><span class="eyebrow">ACCESS CONTROL</span><h2>管理员账号与权限</h2><p>添加后台账号，并控制每个账号可以查看和修改的功能。</p></div>
+            </div>
+            <div class="editor-section">
+              <div class="section-title"><div><h3>添加管理员</h3><p>新账号创建后可以立即登录后台，密码至少8位。</p></div></div>
+              <form class="new-admin-form" id="addAdminForm">
+                <div class="form-grid">
+                  <label class="field"><span>登录账号</span><input id="newAdminUsername" autocomplete="off" placeholder="例如：editor01" required /></label>
+                  <label class="field"><span>显示名称</span><input id="newAdminDisplayName" autocomplete="off" placeholder="例如：内容编辑" /></label>
+                  <label class="field wide"><span>登录密码</span><input id="newAdminPassword" type="password" autocomplete="new-password" minlength="8" placeholder="至少8位" required /></label>
+                </div>
+                <fieldset class="permission-fieldset">
+                  <legend>功能权限</legend>
+                  <div class="permission-grid">
+                    <label><input type="checkbox" value="content" data-new-permission checked /><span><strong>全站文案</strong><small>修改标题、提示语和弹窗文案</small></span></label>
+                    <label><input type="checkbox" value="appearance" data-new-permission /><span><strong>视觉与分类</strong><small>修改主题、分类和网盘来源</small></span></label>
+                    <label><input type="checkbox" value="resources" data-new-permission checked /><span><strong>资源与链接</strong><small>新增、编辑和删除资源链接</small></span></label>
+                    <label><input type="checkbox" value="uploads" data-new-permission /><span><strong>上传图片</strong><small>上传新的资源海报图片</small></span></label>
+                    <label><input type="checkbox" value="admins" data-new-permission /><span><strong>管理员管理</strong><small>添加账号并分配权限</small></span></label>
+                  </div>
+                </fieldset>
+                <label class="account-enabled"><input id="newAdminEnabled" type="checkbox" checked /><span>创建后立即启用账号</span></label>
+                <button class="add-admin-button" type="submit">+ 添加管理员账号</button>
+              </form>
+            </div>
+            <div class="account-toolbar"><div><strong>现有管理员</strong><span id="adminAccountCount">共 0 个账号</span></div><p>主管理员拥有全部权限且不能删除。</p></div>
+            <div class="admin-account-list" id="adminAccountsList"></div>
           </section>
         </div>
       </main>
