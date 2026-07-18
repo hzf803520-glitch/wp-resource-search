@@ -123,10 +123,9 @@ function renderSourceChips() {
 }
 
 function renderCategories() {
-  els.categoryTabs.innerHTML = categories.map((category) => {
-    const count = resources.filter((item) => isCategory(item, category)).length;
-    return `<button type="button" data-category="${escapeHtml(category)}">${escapeHtml(category)} <small>${count}</small></button>`;
-  }).join("");
+  els.categoryTabs.innerHTML = categories.map((category) => (
+    `<button type="button" data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`
+  )).join("");
 }
 
 function resourceBadges(resource) {
@@ -336,10 +335,12 @@ async function bootstrap() {
       .filter((resource) => resource.visible !== false)
       .map((resource) => ({ ...resource, category: normalizeCategory(resource.category) || "其他" }));
     sources = config.sources || [];
-    const discovered = resources.map((resource) => resource.category);
-    categories = [...new Set([...(config.categoryOrder || []), ...discovered]
+    const configuredCategories = [...new Set((config.categoryOrder || [])
       .map(normalizeCategory)
       .filter(Boolean))];
+    categories = configuredCategories.length
+      ? configuredCategories
+      : [...new Set(resources.map((resource) => resource.category).filter(Boolean))];
     applyThemeAndText();
     renderSourceChips();
     renderCategories();
