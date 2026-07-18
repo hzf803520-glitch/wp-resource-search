@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f4f4f5" id="themeColorMeta" />
+    <meta name="description" content="网盘资源搜索与筛选" />
+    <title>搜索资源</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./search.css" />
+  </head>
+  <body class="search-page">
+    <main class="search-shell">
+      <header class="search-page-header">
+        <button class="back-button" id="backButton" type="button" aria-label="返回首页">‹</button>
+        <form class="search-page-form" id="searchPageForm" role="search">
+          <label class="search-page-input">
+            <span aria-hidden="true">⌕</span>
+            <input id="searchPageInput" type="search" autocomplete="off" placeholder="搜索资源..." aria-label="搜索资源" />
+          </label>
+          <button class="search-page-submit" id="searchPageSubmit" type="submit">搜索</button>
+        </form>
+      </header>
+
+      <section class="filter-card" aria-label="筛选资源">
+        <div class="sort-row" id="sortFilters">
+          <button type="button" data-sort="default">默认</button>
+          <button type="button" data-sort="hot">最热</button>
+          <button type="button" data-sort="rating">评分</button>
+          <button type="button" data-sort="year">年份</button>
+          <div class="view-switch" aria-label="显示方式">
+            <button type="button" data-view="list" aria-label="列表显示">☰</button>
+            <button type="button" data-view="grid" aria-label="宫格显示">▦</button>
+          </div>
+        </div>
+        <div class="filter-scroll" id="categoryFilters" aria-label="分类筛选"></div>
+        <div class="filter-scroll" id="sourceFilters" aria-label="网盘筛选"></div>
+      </section>
+
+      <section class="search-results-card" aria-live="polite">
+        <div class="result-summary">
+          <strong id="resultSummary">全部资源</strong>
+          <span id="resultCount"></span>
+        </div>
+        <div class="search-results" id="searchResults"></div>
+        <div class="search-empty" id="searchEmpty" hidden>
+          <span aria-hidden="true">🔎</span>
+          <strong id="searchEmptyTitle">没有找到相关资源</strong>
+          <p id="searchEmptyDescription">换个关键词或筛选条件再试试</p>
+          <button type="button" id="resetFilters">清除筛选</button>
+        </div>
+      </section>
+    </main>
+
+    <div class="modal-backdrop" id="resourceModal" hidden>
+      <section class="resource-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <header class="modal-header">
+          <h2 id="modal-title">资源链接</h2>
+          <button class="icon-button" id="closeModalIcon" aria-label="关闭弹窗">×</button>
+        </header>
+        <div class="modal-body">
+          <div class="success-mark" aria-hidden="true">✓</div>
+          <h3 id="modalSuccess">获取成功!</h3>
+          <p id="modalResourceName">资源名称</p>
+          <div class="link-panel">
+            <div class="provider-tabs" id="providerTabs"></div>
+            <p class="link-status"><span id="activeProvider">网盘</span><small id="modalLinkStatus">资源链接</small></p>
+            <div class="link-value" id="linkValue"></div>
+            <div class="link-actions">
+              <button class="primary-action" id="copyLink">复制链接</button>
+              <button class="secondary-action" id="openLink">打开链接</button>
+            </div>
+          </div>
+          <p class="modal-tip"><span aria-hidden="true">🕘</span> <span id="modalTip">请点击对应网盘按钮复制或打开链接</span></p>
+          <button class="close-button" id="closeModal">关闭</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="./search.js"></script>
+  </body>
+</html>

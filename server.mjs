@@ -553,6 +553,7 @@ async function serveStatic(req, res, url) {
   let pathname = decodeURIComponent(url.pathname);
   if (pathname === "/") pathname = "/index.html";
   if (pathname === "/admin" || pathname === "/admin/") pathname = "/admin.html";
+  if (pathname === "/search" || pathname === "/search/") pathname = "/search.html";
   if (pathname.startsWith("/data/") || pathname.endsWith(".mjs") || pathname === "/package.json") {
     res.writeHead(404, securityHeaders());
     return res.end("Not found");

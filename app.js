@@ -82,6 +82,14 @@ function getResourceLink(resource, sourceId) {
   return resource?.links?.[sourceId] || source?.defaultLink || "";
 }
 
+function openSearchPage(params = {}) {
+  const url = new URL("/search", window.location.origin);
+  Object.entries(params).forEach(([key, value]) => {
+    if (value) url.searchParams.set(key, value);
+  });
+  window.location.href = url.toString();
+}
+
 function applyThemeAndText() {
   const root = document.documentElement;
   root.style.setProperty("--accent", config.theme?.accent || "#ff725f");
@@ -269,22 +277,14 @@ document.addEventListener("click", (event) => {
 
   const categoryTarget = event.target.closest("[data-category]");
   if (categoryTarget) {
-    const category = categoryTarget.dataset.category;
-    state.selectedCategory = state.selectedCategory === category ? null : category;
-    document.querySelectorAll(".category-tabs button").forEach((button) => {
-      button.classList.toggle("active", button.dataset.category === state.selectedCategory);
-    });
-    applySearch();
+    openSearchPage({ category: categoryTarget.dataset.category });
+    return;
   }
 
   const sourceTarget = event.target.closest("[data-source]");
   if (sourceTarget) {
-    const source = sourceTarget.dataset.source;
-    state.selectedSource = state.selectedSource === source ? null : source;
-    document.querySelectorAll(".source-chips button").forEach((button) => {
-      button.classList.toggle("active", button.dataset.source === state.selectedSource);
-    });
-    applySearch();
+    openSearchPage({ source: sourceTarget.dataset.source });
+    return;
   }
 
   const providerTarget = event.target.closest("[data-provider]");
@@ -296,17 +296,16 @@ document.addEventListener("click", (event) => {
   const showAllTarget = event.target.closest("[data-show-all]");
   if (showAllTarget) {
     const type = showAllTarget.dataset.showAll;
-    const items = type === "rating" ? [...resources].sort((a, b) => Number(b.rating) - Number(a.rating)) : [...resources].sort((a, b) => Number(b.heat) - Number(a.heat));
-    const suffix = setting("allSuffix", "· 全部");
-    const title = type === "rating" ? `${setting("ratingTitle", "好评榜")} ${suffix}` : type === "popular" ? `${setting("popularTitle", "人气榜")} ${suffix}` : `${setting("hotTitle", "热门资源")} ${suffix}`;
-    renderResults(items, title);
+    openSearchPage({ sort: type === "rating" ? "rating" : "hot" });
   }
 });
 
 els.searchForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  applySearch();
+  openSearchPage({ q: els.searchInput.value.trim() });
 });
+
+els.searchInput.addEventListener("click", () => openSearchPage());
 
 els.clearFilter.addEventListener("click", clearFilters);
 document.querySelector("#closeModalIcon").addEventListener("click", closeModal);
