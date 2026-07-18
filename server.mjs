@@ -314,6 +314,10 @@ function normalizeConfig(input, previous = {}) {
   }));
 
   const sourceIds = new Set(sources.map((source) => source.id));
+  const requestedCategoryOrder = [...new Set((Array.isArray(input.categoryOrder) ? input.categoryOrder : [])
+    .slice(0, 50)
+    .map((item) => cleanText(item, 40))
+    .filter(Boolean))];
   const resources = (Array.isArray(input.resources) ? input.resources : []).slice(0, 500).map((resource, index) => {
     const links = {};
     for (const [sourceId, link] of Object.entries(resource.links || {})) {
@@ -333,6 +337,10 @@ function normalizeConfig(input, previous = {}) {
       visible: resource.visible !== false
     };
   });
+  const categoryOrder = [...new Set([
+    ...requestedCategoryOrder,
+    ...resources.map((resource) => resource.category).filter(Boolean)
+  ])].slice(0, 50);
 
   return {
     meta: {
@@ -341,7 +349,7 @@ function normalizeConfig(input, previous = {}) {
     },
     settings,
     theme,
-    categoryOrder: (Array.isArray(input.categoryOrder) ? input.categoryOrder : []).slice(0, 50).map((item) => cleanText(item, 40)).filter(Boolean),
+    categoryOrder,
     sources,
     resources
   };

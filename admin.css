@@ -184,7 +184,7 @@ button { cursor: pointer; }
 .field { display: grid; gap: 7px; min-width: 0; }
 .field.wide { grid-column: 1 / -1; }
 .field > span { color: #4d5462; font-size: 11px; font-weight: 700; }
-.field input, .field textarea, .category-editor, .resource-search input {
+.field input, .field textarea, .field select, .category-editor, .resource-search input {
   width: 100%;
   border: 1px solid #dde2e9;
   border-radius: 9px;
@@ -195,9 +195,10 @@ button { cursor: pointer; }
   font-size: 13px;
   transition: 150ms ease;
 }
-.field input { height: 41px; }
+.field input, .field select { height: 41px; }
+.field select { cursor: pointer; }
 .field textarea { min-height: 74px; resize: vertical; }
-.field input:focus, .field textarea:focus, .category-editor:focus, .resource-search input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255,114,95,0.09); background: #fff; }
+.field input:focus, .field textarea:focus, .field select:focus, .category-editor:focus, .resource-search input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255,114,95,0.09); background: #fff; }
 .field small { color: #9399a5; font-size: 10px; }
 .theme-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; }
 .theme-field { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; }

@@ -102,6 +102,21 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function normalizedCategories(extraCategory = "") {
+  return [...new Set([...(state.config?.categoryOrder || []), extraCategory]
+    .map((item) => String(item || "").trim())
+    .filter(Boolean))];
+}
+
+function categoryOptions(selectedCategory) {
+  const selected = String(selectedCategory || "").trim();
+  const categories = normalizedCategories(selected);
+  if (!categories.length) categories.push("其他");
+  return categories.map((category) => (
+    `<option value="${escapeHtml(category)}"${category === selected ? " selected" : ""}>${escapeHtml(category)}</option>`
+  )).join("");
+}
+
 async function api(url, options = {}) {
   const response = await fetch(url, {
     credentials: "same-origin",
@@ -254,7 +269,7 @@ function resourceMarkup(resource, index) {
             <div class="form-grid">
               <label class="field wide"><span>列表完整标题</span><input data-resource-field="title" value="${escapeHtml(resource.title)}" /></label>
               <label class="field"><span>海报上的短标题</span><input data-resource-field="artTitle" value="${escapeHtml(resource.artTitle)}" /></label>
-              <label class="field"><span>分类</span><input data-resource-field="category" value="${escapeHtml(resource.category)}" list="categorySuggestions" /></label>
+              <label class="field"><span>分类</span><select data-resource-field="category">${categoryOptions(resource.category)}</select></label>
               <label class="field"><span>更新说明</span><input data-resource-field="update" value="${escapeHtml(resource.update)}" /></label>
               <label class="field"><span>热度</span><input type="number" min="0" data-resource-field="heat" value="${Number(resource.heat) || 0}" /></label>
               <label class="field"><span>评分（0-10）</span><input type="number" min="0" max="10" step="0.1" data-resource-field="rating" value="${Number(resource.rating) || 0}" /></label>
@@ -342,13 +357,6 @@ function renderAll() {
   els.categoryEditor.value = (state.config.categoryOrder || []).join("\n");
   renderSources();
   renderResources();
-  let list = document.querySelector("#categorySuggestions");
-  if (!list) {
-    list = document.createElement("datalist");
-    list.id = "categorySuggestions";
-    document.body.appendChild(list);
-  }
-  list.innerHTML = (state.config.categoryOrder || []).map((item) => `<option value="${escapeHtml(item)}"></option>`).join("");
 }
 
 function updateResourceSummary(container, resource) {
@@ -585,7 +593,7 @@ document.addEventListener("input", (event) => {
     }
   }
   if (target === els.categoryEditor) {
-    state.config.categoryOrder = target.value.split(/[，,\n]/).map((item) => item.trim()).filter(Boolean);
+    state.config.categoryOrder = [...new Set(target.value.split(/[，,\n]/).map((item) => item.trim()).filter(Boolean))];
     markDirty();
   }
   if (target === els.resourceSearch) {
@@ -624,6 +632,7 @@ document.addEventListener("input", (event) => {
 
 document.addEventListener("change", (event) => {
   const target = event.target;
+  if (target === els.categoryEditor && state.config) renderResources();
   if (target.matches('[data-new-permission][value="uploads"]') && target.checked) {
     els.addAdminForm.querySelector('[data-new-permission][value="resources"]').checked = true;
   }

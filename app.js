@@ -65,6 +65,14 @@ function setting(key, fallback = "") {
   return config?.settings?.[key] || fallback;
 }
 
+function normalizeCategory(value) {
+  return String(value || "").trim();
+}
+
+function isCategory(resource, category) {
+  return normalizeCategory(resource?.category) === normalizeCategory(category);
+}
+
 function getSource(id) {
   return sources.find((source) => source.id === id);
 }
@@ -116,7 +124,7 @@ function renderSourceChips() {
 
 function renderCategories() {
   els.categoryTabs.innerHTML = categories.map((category) => {
-    const count = resources.filter((item) => item.category === category).length;
+    const count = resources.filter((item) => isCategory(item, category)).length;
     return `<button type="button" data-category="${escapeHtml(category)}">${escapeHtml(category)} <small>${count}</small></button>`;
   }).join("");
 }
@@ -187,7 +195,7 @@ function applySearch() {
     const sourceLabels = Object.keys(resource.links || {}).map((id) => getSource(id)?.label || "");
     const haystack = [resource.title, resource.artTitle, resource.category, resource.update, ...sourceLabels].join(" ").toLowerCase();
     return (!query || haystack.includes(query))
-      && (!state.selectedCategory || resource.category === state.selectedCategory)
+      && (!state.selectedCategory || isCategory(resource, state.selectedCategory))
       && (!state.selectedSource || Boolean(resource.links?.[state.selectedSource]));
   });
 
@@ -321,13 +329,17 @@ document.addEventListener("error", (event) => {
 
 async function bootstrap() {
   try {
-    const response = await fetch("/api/config", { cache: "no-store" });
+    const response = await fetch(`/api/config?refresh=${Date.now()}`, { cache: "no-store" });
     if (!response.ok) throw new Error("配置读取失败");
     config = await response.json();
-    resources = (config.resources || []).filter((resource) => resource.visible !== false);
+    resources = (config.resources || [])
+      .filter((resource) => resource.visible !== false)
+      .map((resource) => ({ ...resource, category: normalizeCategory(resource.category) || "其他" }));
     sources = config.sources || [];
-    const discovered = [...new Set(resources.map((resource) => resource.category).filter(Boolean))];
-    categories = [...new Set([...(config.categoryOrder || []), ...discovered])];
+    const discovered = resources.map((resource) => resource.category);
+    categories = [...new Set([...(config.categoryOrder || []), ...discovered]
+      .map(normalizeCategory)
+      .filter(Boolean))];
     applyThemeAndText();
     renderSourceChips();
     renderCategories();
