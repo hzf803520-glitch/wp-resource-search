@@ -2,6 +2,9 @@
   "use strict";
 
   const BACKUP_KEY = "wp-resource-search:config-backup:v3";
+  const LOGIN_KEY = "wp-resource-search:current-login:v1";
+  const ACTIVE_PANEL_KEY = "wp-resource-search:active-panel:v1";
+  const SCROLL_KEY = "wp-resource-search:admin-scroll:v1";
   const originalFetch = window.fetch.bind(window);
   let restorePromise = null;
   let saveTimer = null;
@@ -185,6 +188,55 @@
     }
   }
 
+  function readRememberedLogin() {
+    try {
+      const value = JSON.parse(sessionStorage.getItem(LOGIN_KEY) || "null");
+      return value && value.username && value.password ? value : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function rememberLogin(body) {
+    try {
+      const value = typeof body === "string" ? JSON.parse(body) : body;
+      if (value?.username && value?.password) {
+        sessionStorage.setItem(LOGIN_KEY, JSON.stringify({
+          username: String(value.username),
+          password: String(value.password)
+        }));
+      }
+    } catch {
+      // Ignore malformed login bodies.
+    }
+  }
+
+  function clearRememberedLogin() {
+    try {
+      sessionStorage.removeItem(LOGIN_KEY);
+      sessionStorage.removeItem(ACTIVE_PANEL_KEY);
+      sessionStorage.removeItem(SCROLL_KEY);
+    } catch {
+      // Storage may be unavailable in private browsing mode.
+    }
+  }
+
+  async function autoLoginFromCurrentTab() {
+    const remembered = readRememberedLogin();
+    if (!remembered) return null;
+    const response = await originalFetch("/api/auth/login", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(remembered)
+    }).catch(() => null);
+    if (!response?.ok) {
+      clearRememberedLogin();
+      return null;
+    }
+    return response.json().catch(() => null);
+  }
+
   window.fetch = async function persistentFetch(input, init = {}) {
     const path = requestPath(input);
     const method = String(init.method || (typeof input !== "string" && input?.method) || "GET").toUpperCase();
@@ -200,6 +252,24 @@
     }
 
     const response = await originalFetch(input, init);
+
+    if (path === "/api/auth/login" && method === "POST" && response.ok) {
+      rememberLogin(init.body);
+    }
+
+    if (path === "/api/auth/logout" && method === "POST") {
+      clearRememberedLogin();
+    }
+
+    if (path === "/api/auth/status" && method === "GET" && response.ok) {
+      const status = await response.clone().json().catch(() => null);
+      if (status && !status.authenticated) {
+        const login = await autoLoginFromCurrentTab();
+        if (login?.ok && login.user) {
+          return jsonResponse({ ok: true, authenticated: true, user: login.user });
+        }
+      }
+    }
 
     if (path === "/api/admin/config" && method === "GET" && response.ok) {
       const serverConfig = await response.clone().json().catch(() => null);
@@ -230,9 +300,63 @@
     }, 900);
   }
 
+  function restoreCurrentAdminPage() {
+    const adminView = document.querySelector("#adminView");
+    if (!adminView || adminView.hidden) return;
+
+    let panelId = "";
+    let scrollTop = 0;
+    try {
+      panelId = sessionStorage.getItem(ACTIVE_PANEL_KEY) || "";
+      scrollTop = Number(sessionStorage.getItem(SCROLL_KEY)) || 0;
+    } catch {
+      // Ignore storage failures.
+    }
+
+    if (panelId) {
+      const button = document.querySelector(`[data-panel-target="${CSS.escape(panelId)}"]`);
+      if (button && !button.hidden) button.click();
+    }
+
+    const content = document.querySelector(".content-area");
+    if (content && scrollTop > 0) requestAnimationFrame(() => { content.scrollTop = scrollTop; });
+  }
+
+  function startPageMemory() {
+    const adminView = document.querySelector("#adminView");
+    const content = document.querySelector(".content-area");
+
+    document.addEventListener("click", (event) => {
+      const panelButton = event.target.closest("[data-panel-target]");
+      if (panelButton) {
+        try { sessionStorage.setItem(ACTIVE_PANEL_KEY, panelButton.dataset.panelTarget || ""); } catch {}
+      }
+    }, true);
+
+    if (content) {
+      let scrollTimer = null;
+      content.addEventListener("scroll", () => {
+        clearTimeout(scrollTimer);
+        scrollTimer = setTimeout(() => {
+          try { sessionStorage.setItem(SCROLL_KEY, String(content.scrollTop || 0)); } catch {}
+        }, 120);
+      }, { passive: true });
+    }
+
+    if (adminView) {
+      const pageObserver = new MutationObserver(() => {
+        if (!adminView.hidden) setTimeout(restoreCurrentAdminPage, 0);
+      });
+      pageObserver.observe(adminView, { attributes: true, attributeFilter: ["hidden"] });
+      if (!adminView.hidden) setTimeout(restoreCurrentAdminPage, 0);
+    }
+  }
+
   function startAutoSaveObserver() {
     const status = document.querySelector("#saveStatus");
     if (!status) return;
+
+    startPageMemory();
 
     const observer = new MutationObserver(scheduleAutoSave);
     observer.observe(status, {
