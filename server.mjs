@@ -481,12 +481,19 @@ function normalizeConfig(input, previous = {}) {
     .slice(0, 50)
     .map((item) => cleanText(item, 40))
     .filter(Boolean))];
+
+  const previousResources = new Map(
+    (Array.isArray(previous.resources) ? previous.resources : [])
+      .map((resource) => [String(resource.id), resource])
+  );
+  const saveTimestamp = new Date().toISOString();
+
   const resources = (Array.isArray(input.resources) ? input.resources : []).slice(0, 500).map((resource, index) => {
     const links = {};
     for (const [sourceId, link] of Object.entries(resource.links || {})) {
       if (sourceIds.has(sourceId) && cleanUrl(link)) links[sourceId] = cleanUrl(link);
     }
-    return {
+    const normalizedResource = {
       id: Number.isFinite(Number(resource.id)) ? Number(resource.id) : Date.now() + index,
       title: cleanText(resource.title || `未命名资源${index + 1}`, 160),
       artTitle: cleanText(resource.artTitle || resource.title || "未命名", 60),
@@ -500,6 +507,36 @@ function normalizeConfig(input, previous = {}) {
         : ["#26354f", "#7786a5"],
       links,
       visible: resource.visible !== false
+    };
+
+    const previousResource = previousResources.get(String(normalizedResource.id));
+    const comparablePrevious = previousResource ? {
+      id: previousResource.id,
+      title: previousResource.title,
+      artTitle: previousResource.artTitle,
+      category: previousResource.category,
+      heat: previousResource.heat,
+      rating: previousResource.rating,
+      update: previousResource.update,
+      image: previousResource.image,
+      colors: previousResource.colors,
+      links: previousResource.links,
+      visible: previousResource.visible !== false
+    } : null;
+
+    const changed = !comparablePrevious
+      || JSON.stringify(comparablePrevious) !== JSON.stringify(normalizedResource);
+
+    return {
+      ...normalizedResource,
+      updatedAt: changed
+        ? saveTimestamp
+        : cleanText(
+            previousResource?.updatedAt
+              || previous.meta?.updatedAt
+              || saveTimestamp,
+            40
+          )
     };
   });
   const categoryOrder = [...new Set([
@@ -763,6 +800,7 @@ async function serveStatic(req, res, url) {
       const allLinksScript = '<script src="/all-links-modal.js?v=20260719-1"></script>';
       const disclaimerScript = '<script src="/disclaimer-config.js?v=20260719-1"></script>';
       const qrPromoScript = '<script src="/qr-promo-config.js?v=20260719-1"></script>';
+      const recentUpdatesScript = '<script src="/recent-updates-config.js?v=20260719-1"></script>';
       const scripts = [
         !html.includes("/notice-config.js") ? noticeScript : "",
         ["/index.html", "/search.html"].includes(pathname) && !html.includes("/all-links-modal.js")
@@ -773,6 +811,9 @@ async function serveStatic(req, res, url) {
           : "",
         ["/index.html", "/search.html", "/admin.html"].includes(pathname) && !html.includes("/qr-promo-config.js")
           ? qrPromoScript
+          : "",
+        ["/index.html", "/search.html", "/admin.html"].includes(pathname) && !html.includes("/recent-updates-config.js")
+          ? recentUpdatesScript
           : ""
       ].filter(Boolean).join("\n");
       if (scripts) {
