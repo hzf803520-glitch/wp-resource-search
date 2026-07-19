@@ -1,10 +1,10 @@
 (() => {
   "use strict";
 
-  const SETTING_KEY = "resourceExpiryNotice";
-  const DEFAULT_NOTICE = "⚠️ 资源10分钟失效，请尽快保存！";
-  const ADMIN_EDITOR_ID = "resourceExpiryNoticeEditor";
-  const FRONT_NOTICE_CLASS = "configurable-expiry-notice";
+  const KEY = "resourceExpiryNotice";
+  const DEFAULT_TEXT = "⚠️ 资源10分钟失效，请尽快保存！";
+  const ADMIN_FIELD_ID = "resourceExpiryNoticeField";
+  const PUBLIC_MARKER = "data-configurable-expiry-notice";
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -15,7 +15,11 @@
       .replaceAll("'", "&#039;");
   }
 
-  async function readConfig(admin = false) {
+  function normalize(value) {
+    return String(value ?? "").replace(/\s+/g, " ").trim();
+  }
+
+  async function fetchConfig(admin) {
     const response = await fetch(admin ? "/api/admin/config" : "/api/config", {
       credentials: "same-origin",
       cache: "no-store"
@@ -24,148 +28,185 @@
     return response.json();
   }
 
-  function configuredNotice(config) {
-    const value = String(config?.settings?.[SETTING_KEY] || "").trim();
-    return value || DEFAULT_NOTICE;
+  function noticeText(config) {
+    return normalize(config?.settings?.[KEY]) || DEFAULT_TEXT;
   }
 
-  function containsNoticeText(element) {
-    const text = String(element?.textContent || "").replace(/\s+/g, "");
-    return /资源.*分钟.*失效/.test(text) || /请尽快保存/.test(text);
-  }
-
-  function smallestExistingNotice() {
-    const candidates = [...document.querySelectorAll("div,p,span,strong,small")]
-      .filter((element) => containsNoticeText(element))
-      .filter((element) => ![...element.children].some((child) => containsNoticeText(child)));
-    return candidates[0] || null;
-  }
-
-  function findCopyButton() {
-    return [...document.querySelectorAll("button,a")]
-      .find((element) => /复制链接/.test(String(element.textContent || "")));
-  }
-
-  function findDialog(element) {
-    if (!element) return null;
-    return element.closest(
-      '[role="dialog"], dialog, .modal, .modal-card, .resource-modal, .resource-dialog, .modal-content'
-    ) || element.parentElement?.parentElement?.parentElement || null;
-  }
-
-  function createNotice(dialog, copyButton) {
-    if (!dialog || dialog.querySelector(`.${FRONT_NOTICE_CLASS}`)) return null;
-
-    const notice = document.createElement("div");
-    notice.className = FRONT_NOTICE_CLASS;
-    Object.assign(notice.style, {
-      margin: "12px 0 0",
-      padding: "10px 12px",
-      border: "1px solid #ff4d4f",
-      borderRadius: "6px",
-      color: "#ff4d4f",
-      background: "#fff7f7",
-      fontSize: "13px",
-      fontWeight: "700",
-      lineHeight: "1.5",
-      textAlign: "center"
-    });
-
-    const actions = copyButton?.parentElement;
-    if (actions && dialog.contains(actions)) {
-      actions.insertAdjacentElement("afterend", notice);
-    } else {
-      dialog.appendChild(notice);
-    }
-    return notice;
-  }
-
-  function applyPublicNotice(noticeText) {
-    const existing = smallestExistingNotice();
-    if (existing) {
-      existing.textContent = noticeText;
-      existing.dataset.configurableNotice = "true";
-      return;
-    }
-
-    const copyButton = findCopyButton();
-    if (!copyButton) return;
-    const dialog = findDialog(copyButton);
-    const created = createNotice(dialog, copyButton);
-    if (created) created.textContent = noticeText;
-  }
-
-  async function startPublicNotice() {
-    let noticeText = DEFAULT_NOTICE;
-    try {
-      noticeText = configuredNotice(await readConfig(false));
-    } catch {
-      // Keep the safe default while the service is waking up.
-    }
-
-    applyPublicNotice(noticeText);
-    const observer = new MutationObserver(() => applyPublicNotice(noticeText));
-    observer.observe(document.documentElement, { childList: true, subtree: true });
-
-    // Refresh the configured value periodically so a newly published value
-    // appears without requiring a long-lived tab to be reopened.
-    setInterval(async () => {
-      try {
-        noticeText = configuredNotice(await readConfig(false));
-        applyPublicNotice(noticeText);
-      } catch {
-        // Ignore temporary network errors.
-      }
-    }, 15000);
-  }
-
-  function buildAdminEditor(value) {
+  // ---------- Admin field ----------
+  function createAdminSection(value) {
     const section = document.createElement("div");
     section.className = "editor-section";
-    section.id = ADMIN_EDITOR_ID;
+    section.id = ADMIN_FIELD_ID;
     section.innerHTML = `
       <div class="section-title">
         <div>
           <h3>资源失效提醒</h3>
-          <p>配置用户获取资源链接后看到的红色提醒文案。</p>
+          <p>设置资源链接弹窗中的红色提醒文字。</p>
         </div>
       </div>
       <div class="form-grid">
         <label class="field wide">
           <span>资源失效提醒文案</span>
-          <textarea data-setting="${SETTING_KEY}" rows="3"
-            placeholder="${escapeHtml(DEFAULT_NOTICE)}">${escapeHtml(value)}</textarea>
+          <textarea data-setting="${KEY}" rows="3"
+            placeholder="${escapeHtml(DEFAULT_TEXT)}">${escapeHtml(value)}</textarea>
         </label>
       </div>
     `;
     return section;
   }
 
-  async function ensureAdminEditor() {
-    const host = document.querySelector("#settingsEditor");
-    if (!host || !host.children.length || document.querySelector(`#${ADMIN_EDITOR_ID}`)) return;
+  let adminLoading = false;
 
+  async function ensureAdminField() {
+    if (!location.pathname.startsWith("/admin")) return;
+    if (document.getElementById(ADMIN_FIELD_ID) || adminLoading) return;
+
+    const host = document.querySelector("#settingsEditor");
+    if (!host || !host.children.length) return;
+
+    adminLoading = true;
     try {
-      const config = await readConfig(true);
-      host.appendChild(buildAdminEditor(configuredNotice(config)));
+      const config = await fetchConfig(true);
+      host.appendChild(createAdminSection(noticeText(config)));
     } catch {
-      // The user may still be on the login screen. A later retry will add it.
+      // Login may not have finished yet. The next retry will add the field.
+    } finally {
+      adminLoading = false;
     }
   }
 
-  function startAdminEditor() {
-    ensureAdminEditor();
-    const observer = new MutationObserver(ensureAdminEditor);
-    observer.observe(document.documentElement, { childList: true, subtree: true });
-    setInterval(ensureAdminEditor, 1200);
+  function startAdmin() {
+    ensureAdminField();
+    const timer = setInterval(() => {
+      ensureAdminField();
+      if (document.getElementById(ADMIN_FIELD_ID)) {
+        // Keep checking slowly because admin.js re-renders this panel after saving.
+        clearInterval(timer);
+        setInterval(ensureAdminField, 1500);
+      }
+    }, 500);
+  }
+
+  // ---------- Public modal ----------
+  function isExpiryText(text) {
+    const value = normalize(text);
+    return (
+      /资源.*分钟.*失效/.test(value) ||
+      /请尽快保存/.test(value) ||
+      value === DEFAULT_TEXT
+    );
+  }
+
+  function findExistingNotice() {
+    const marked = document.querySelector(`[${PUBLIC_MARKER}]`);
+    if (marked) return marked;
+
+    return [...document.querySelectorAll("div,p,span,strong,small")]
+      .filter((element) => {
+        const text = normalize(element.textContent);
+        if (!text || text.length > 100 || !isExpiryText(text)) return false;
+        return ![...element.children].some((child) => isExpiryText(child.textContent));
+      })[0] || null;
+  }
+
+  function findResourceDialog() {
+    const action = [...document.querySelectorAll("button,a")]
+      .find((element) => /复制链接|打开链接/.test(normalize(element.textContent)));
+
+    if (!action) return null;
+
+    return action.closest(
+      '[role="dialog"],dialog,.modal,.modal-card,.modal-content,.resource-modal,.resource-dialog'
+    ) || action.parentElement?.parentElement?.parentElement || null;
+  }
+
+  function insertNotice(dialog, text) {
+    if (!dialog || dialog.querySelector(`[${PUBLIC_MARKER}]`)) return;
+
+    const notice = document.createElement("div");
+    notice.setAttribute(PUBLIC_MARKER, "true");
+    notice.textContent = text;
+
+    Object.assign(notice.style, {
+      margin: "12px 0 0",
+      padding: "10px 12px",
+      border: "1px solid #ff4d4f",
+      borderRadius: "4px",
+      color: "#ff3b3b",
+      background: "#fff",
+      fontSize: "13px",
+      fontWeight: "700",
+      lineHeight: "1.5",
+      textAlign: "center"
+    });
+
+    const closeButton = [...dialog.querySelectorAll("button")]
+      .find((button) => normalize(button.textContent) === "关闭");
+
+    if (closeButton) {
+      const closeArea = closeButton.parentElement || closeButton;
+      closeArea.insertAdjacentElement("beforebegin", notice);
+    } else {
+      dialog.appendChild(notice);
+    }
+  }
+
+  let currentText = DEFAULT_TEXT;
+  let publicTimer = null;
+
+  function applyPublicNotice() {
+    const existing = findExistingNotice();
+    if (existing) {
+      existing.setAttribute(PUBLIC_MARKER, "true");
+      if (normalize(existing.textContent) !== currentText) {
+        existing.textContent = currentText;
+      }
+      return;
+    }
+
+    insertNotice(findResourceDialog(), currentText);
+  }
+
+  function schedulePublicApply(delay = 80) {
+    clearTimeout(publicTimer);
+    publicTimer = setTimeout(applyPublicNotice, delay);
+  }
+
+  async function startPublic() {
+    try {
+      currentText = noticeText(await fetchConfig(false));
+    } catch {
+      currentText = DEFAULT_TEXT;
+    }
+
+    applyPublicNotice();
+
+    document.addEventListener("click", () => {
+      schedulePublicApply(50);
+      setTimeout(applyPublicNotice, 180);
+      setTimeout(applyPublicNotice, 450);
+    }, true);
+
+    const observer = new MutationObserver(() => schedulePublicApply());
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    // Refresh only the setting value; this does not modify resource rendering.
+    setInterval(async () => {
+      try {
+        const next = noticeText(await fetchConfig(false));
+        if (next !== currentText) {
+          currentText = next;
+          applyPublicNotice();
+        }
+      } catch {
+        // Ignore a temporary service wake-up/network failure.
+      }
+    }, 20000);
   }
 
   const start = () => {
-    if (location.pathname.startsWith("/admin")) {
-      startAdminEditor();
-    } else {
-      startPublicNotice();
-    }
+    if (location.pathname.startsWith("/admin")) startAdmin();
+    else startPublic();
   };
 
   if (document.readyState === "loading") {

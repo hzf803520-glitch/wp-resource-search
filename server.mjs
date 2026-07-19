@@ -751,8 +751,21 @@ async function serveStatic(req, res, url) {
   try {
     const info = await stat(filePath);
     if (!info.isFile()) throw new Error("Not a file");
-    const content = await readFile(filePath);
+    let content = await readFile(filePath);
     const extension = path.extname(filePath).toLowerCase();
+
+    // Safely load the configurable expiry notice on the public and admin pages.
+    if (["/index.html", "/search.html", "/admin.html"].includes(pathname)) {
+      let html = content.toString("utf8");
+      const noticeScript = '<script src="/notice-config.js?v=20260719-3"></script>';
+      if (!html.includes("/notice-config.js")) {
+        html = /<\/body>/i.test(html)
+          ? html.replace(/<\/body>/i, `${noticeScript}\n</body>`)
+          : `${html}\n${noticeScript}`;
+      }
+      content = Buffer.from(html, "utf8");
+    }
+
     res.writeHead(200, {
       ...securityHeaders(),
       "Content-Type": MIME_TYPES[extension] || "application/octet-stream",
