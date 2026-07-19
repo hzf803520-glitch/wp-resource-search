@@ -1,10 +1,13 @@
 (() => {
   "use strict";
 
+  // Build: keep the join-group button inside the detected phone page boundary.
+
   const KEYS = {
     enabled: "qrPromoEnabled",
     image: "qrPromoImage",
     floatingText: "qrPromoFloatingText",
+    floatingSubtext: "qrPromoFloatingSubtext",
     title: "qrPromoTitle",
     groupName: "qrPromoGroupName",
     description: "qrPromoDescription"
@@ -13,7 +16,8 @@
   const DEFAULTS = {
     enabled: "show",
     image: "",
-    floatingText: "扫码进群",
+    floatingText: "加入资源群",
+    floatingSubtext: "扫码进群",
     title: "扫码进群（防止失联）",
     groupName: "资源交流群",
     description: "二维码如有更新，请以页面最新内容为准"
@@ -66,6 +70,7 @@
       enabled: enabledValue === "hide" ? "hide" : DEFAULTS.enabled,
       image: validImage(config?.settings?.[KEYS.image]),
       floatingText: normalize(config?.settings?.[KEYS.floatingText]) || DEFAULTS.floatingText,
+      floatingSubtext: normalize(config?.settings?.[KEYS.floatingSubtext]) || DEFAULTS.floatingSubtext,
       title: normalize(config?.settings?.[KEYS.title]) || DEFAULTS.title,
       groupName: normalize(config?.settings?.[KEYS.groupName]) || DEFAULTS.groupName,
       description: normalize(config?.settings?.[KEYS.description]) || DEFAULTS.description
@@ -140,8 +145,13 @@
         </label>
 
         <label class="field">
-          <span>小二维码下方文字</span>
+          <span>悬浮按钮主文案</span>
           <input data-setting="${KEYS.floatingText}" value="${escapeHtml(values.floatingText)}" />
+        </label>
+
+        <label class="field">
+          <span>悬浮按钮副文案</span>
+          <input data-setting="${KEYS.floatingSubtext}" value="${escapeHtml(values.floatingSubtext)}" />
         </label>
 
         <label class="field wide">
@@ -358,32 +368,64 @@
       .qr-promo-floating {
         position: fixed;
         z-index: 9000;
-        right: max(12px, calc((100vw - 520px) / 2 + 12px));
+        right: auto;
+        left: 14px;
         bottom: 82px;
-        width: 74px;
-        border: 1px solid #ff5757;
-        border-radius: 4px;
-        padding: 4px;
-        color: #313743;
-        background: #fff;
-        box-shadow: 0 8px 24px rgba(28, 34, 45, .18);
+        display: grid;
+        grid-template-columns: 42px minmax(0, 1fr);
+        align-items: center;
+        gap: 9px;
+        min-width: 142px;
+        min-height: 58px;
+        border: 0;
+        border-radius: 16px;
+        padding: 8px 13px 8px 9px;
+        color: #fff;
+        background: linear-gradient(135deg, #ff705d, #ff9461);
+        box-shadow: 0 12px 28px rgba(255, 112, 93, .32);
         cursor: pointer;
+        text-align: left;
+        transition: transform .18s ease, box-shadow .18s ease;
       }
-      .qr-promo-floating img {
-        display: block;
-        width: 64px;
-        height: 64px;
-        object-fit: contain;
-        background: #fff;
+      .qr-promo-floating:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 15px 32px rgba(255, 112, 93, .38);
       }
-      .qr-promo-floating span {
+      .qr-promo-floating:active {
+        transform: scale(.98);
+      }
+      .qr-promo-floating-icon {
+        display: grid;
+        width: 42px;
+        height: 42px;
+        place-items: center;
+        border-radius: 13px;
+        color: #ff765f;
+        background: rgba(255,255,255,.94);
+        font-size: 22px;
+        line-height: 1;
+      }
+      .qr-promo-floating-copy {
+        min-width: 0;
+      }
+      .qr-promo-floating-copy strong {
         display: block;
         overflow: hidden;
-        margin-top: 3px;
-        color: #555d68;
-        font-size: 9px;
-        line-height: 1.25;
-        text-align: center;
+        color: #fff;
+        font-size: 14px;
+        font-weight: 800;
+        line-height: 1.35;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .qr-promo-floating-copy small {
+        display: block;
+        overflow: hidden;
+        margin-top: 2px;
+        color: rgba(255,255,255,.88);
+        font-size: 10px;
+        font-weight: 500;
+        line-height: 1.3;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
@@ -459,8 +501,9 @@
       body.qr-promo-open { overflow: hidden; }
       @media (max-width: 480px) {
         .qr-promo-floating {
-          right: 12px;
+          right: auto;
           bottom: 78px;
+          min-width: 132px;
         }
         .qr-promo-overlay {
           align-items: end;
@@ -548,23 +591,89 @@
     });
   }
 
+  function findPhonePageContainer() {
+    const preferredSelectors = [
+      ".app-shell",
+      ".home-shell",
+      ".search-shell",
+      ".page-shell",
+      ".mobile-shell",
+      ".site-shell",
+      "main"
+    ];
+
+    for (const selector of preferredSelectors) {
+      const element = document.querySelector(selector);
+      if (!element) continue;
+
+      const rect = element.getBoundingClientRect();
+      if (rect.width >= 280 && rect.width <= 700 && rect.height > 300) {
+        return element;
+      }
+    }
+
+    const candidates = [...document.querySelectorAll("body > div, body > main, body > section")]
+      .map((element) => ({ element, rect: element.getBoundingClientRect() }))
+      .filter(({ rect }) => rect.width >= 280 && rect.width <= 700 && rect.height > 400)
+      .sort((left, right) => right.rect.height - left.rect.height);
+
+    return candidates[0]?.element || document.documentElement;
+  }
+
+  function positionFloatingButton() {
+    const button = document.getElementById(FLOATING_ID);
+    if (!button) return;
+
+    const container = findPhonePageContainer();
+    const rect = container.getBoundingClientRect();
+    const buttonWidth = button.offsetWidth || 142;
+    const innerGap = 12;
+
+    const minimumLeft = 8;
+    const maximumLeft = Math.max(
+      minimumLeft,
+      window.innerWidth - buttonWidth - 8
+    );
+
+    const desiredLeft = rect.right - buttonWidth - innerGap;
+    const left = Math.min(
+      maximumLeft,
+      Math.max(rect.left + innerGap, desiredLeft)
+    );
+
+    button.style.left = `${Math.round(left)}px`;
+  }
+
+  function scheduleFloatingPosition() {
+    requestAnimationFrame(positionFloatingButton);
+  }
+
   function createFloating(values) {
     const button = document.createElement("button");
     button.id = FLOATING_ID;
     button.className = "qr-promo-floating";
     button.type = "button";
-    button.setAttribute("aria-label", values.floatingText);
+    button.setAttribute("aria-label", `${values.floatingText}，${values.floatingSubtext}`);
 
-    const image = document.createElement("img");
-    image.src = values.image;
-    image.alt = values.floatingText;
+    const icon = document.createElement("span");
+    icon.className = "qr-promo-floating-icon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = "👥";
 
-    const text = document.createElement("span");
-    text.textContent = values.floatingText;
+    const copy = document.createElement("span");
+    copy.className = "qr-promo-floating-copy";
 
-    button.append(image, text);
+    const title = document.createElement("strong");
+    title.textContent = values.floatingText;
+
+    const subtitle = document.createElement("small");
+    subtitle.textContent = values.floatingSubtext;
+
+    copy.append(title, subtitle);
+    button.append(icon, copy);
     button.addEventListener("click", openModal);
     document.body.appendChild(button);
+    scheduleFloatingPosition();
   }
 
   function renderPublic(values) {
@@ -596,6 +705,16 @@
     refreshPublic();
 
     publicRefreshTimer = setInterval(refreshPublic, 20000);
+
+    window.addEventListener("resize", scheduleFloatingPosition, { passive: true });
+    window.addEventListener("orientationchange", scheduleFloatingPosition);
+    window.addEventListener("scroll", scheduleFloatingPosition, { passive: true });
+
+    if ("ResizeObserver" in window) {
+      const pageContainer = findPhonePageContainer();
+      const resizeObserver = new ResizeObserver(scheduleFloatingPosition);
+      resizeObserver.observe(pageContainer);
+    }
 
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") closeModal();
