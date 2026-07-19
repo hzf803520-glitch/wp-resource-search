@@ -128,12 +128,32 @@
 
   function dedicatedContext() {
     const params = new URLSearchParams(window.location.search);
-    const view = normalize(params.get("view")).toLowerCase();
-    const value = normalize(
-      params.get("value")
-      || params.get("category")
-      || params.get("source")
-    );
+    let view = normalize(params.get("view")).toLowerCase();
+    let value = normalize(params.get("value"));
+
+    const category = normalize(params.get("category"));
+    const source = normalize(params.get("source"));
+    const sort = normalize(params.get("sort")).toLowerCase();
+
+    if (!PAGE_MODES.has(view)) {
+      if (category && !/全部分类/.test(category)) {
+        view = "category";
+        value = category;
+      } else if (source && !/全部网盘/.test(source)) {
+        view = "source";
+        value = source;
+      } else if (["rating", "score"].includes(sort)) {
+        view = "rating";
+      } else if (["hot", "popular", "heat"].includes(sort)) {
+        view = "popular";
+      } else if (["recent", "new", "latest", "updated"].includes(sort)) {
+        view = "recent";
+      } else {
+        view = "";
+      }
+    }
+
+    if (!value) value = category || source;
 
     return {
       view: PAGE_MODES.has(view) ? view : "",
@@ -236,7 +256,7 @@
 
     if (context.view === "rating") {
       const rating = Math.max(0, Math.min(10, Number(resource.rating) || 0));
-      return `<span class="recent-update-date">★ ${rating.toFixed(1)}</span>`;
+      return `<span class="recent-update-rating">⭐ ${rating.toFixed(1)}</span>`;
     }
 
     if (context.view === "recent") {
@@ -478,6 +498,18 @@
         color: #777e88;
         font-size: 9px;
         text-overflow: ellipsis;
+      }
+      .recent-update-rating {
+        display: inline-flex;
+        align-items: center;
+        min-height: 17px;
+        border-radius: 4px;
+        padding: 1px 6px;
+        color: #f28a00;
+        background: #fff3dc;
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 1.2;
       }
       .recent-update-arrow {
         color: #aab0b8;
@@ -785,7 +817,7 @@
     section.querySelector("[data-recent-updates-more]")?.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      window.location.href = "/search.html?view=recent";
+      window.location.href = "/search.html?view=recent&sort=updated";
     });
 
     const placement = findPlacementTarget(config);
@@ -1010,27 +1042,68 @@
     return `/search.html?${params.toString()}`;
   }
 
+  function directFilterRoute(trigger, config) {
+    const textValue = normalize(trigger.textContent);
+
+    if (textValue === "评分" || textValue === "好评榜" || textValue === "评分榜") {
+      return { view: "rating", value: "" };
+    }
+
+    if (textValue === "最热" || textValue === "人气榜") {
+      return { view: "popular", value: "" };
+    }
+
+    if (textValue === "最近更新") {
+      return { view: "recent", value: "" };
+    }
+
+    const categories = Array.isArray(config?.categoryOrder)
+      ? config.categoryOrder.map(normalize).filter(Boolean)
+      : [];
+
+    if (
+      textValue
+      && textValue !== "全部分类"
+      && categories.includes(textValue)
+    ) {
+      return { view: "category", value: textValue };
+    }
+
+    const sources = Array.isArray(config?.sources)
+      ? config.sources.map((source) => normalize(source.label)).filter(Boolean)
+      : [];
+
+    if (
+      textValue
+      && textValue !== "全部网盘"
+      && sources.includes(textValue)
+    ) {
+      return { view: "source", value: textValue };
+    }
+
+    return null;
+  }
+
   function installUnifiedNavigation() {
     document.addEventListener("click", (event) => {
       if (!currentConfig || isDedicatedListPage()) return;
 
-      const trigger = event.target.closest("a,button");
-      if (!trigger || trigger.closest(`#${SECTION_ID}`)?.querySelector("[data-resource-id]") === trigger) {
-        return;
-      }
-
+      const trigger = event.target.closest("a,button,[role='button']");
+      if (!trigger) return;
       if (trigger.closest("[data-resource-id]")) return;
+      if (trigger.closest(`#${PAGE_ID}`)) return;
 
       const href = trigger.getAttribute?.("href") || "";
       const textValue = normalize(trigger.textContent);
-      const isNavigationTrigger = (
-        /查看更多|查看全部/.test(textValue)
-        || /search\.html/.test(href)
-      );
 
-      if (!isNavigationTrigger) return;
+      const route = directFilterRoute(trigger, currentConfig)
+        || (
+          /查看更多|查看全部/.test(textValue)
+          || /search\.html/.test(href)
+            ? routeFromTrigger(trigger, currentConfig)
+            : null
+        );
 
-      const route = routeFromTrigger(trigger, currentConfig);
       if (!route) return;
 
       event.preventDefault();

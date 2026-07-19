@@ -800,7 +800,7 @@ async function serveStatic(req, res, url) {
       const allLinksScript = '<script src="/all-links-modal.js?v=20260719-1"></script>';
       const disclaimerScript = '<script src="/disclaimer-config.js?v=20260719-1"></script>';
       const qrPromoScript = '<script src="/qr-promo-config.js?v=20260719-1"></script>';
-      const recentUpdatesScript = '<script src="/recent-updates-config.js?v=20260719-1"></script>';
+      const recentUpdatesScript = '<script src="/recent-updates-config.js?v=20260719-9"></script>';
       const scripts = [
         !html.includes("/notice-config.js") ? noticeScript : "",
         ["/index.html", "/search.html"].includes(pathname) && !html.includes("/all-links-modal.js")
