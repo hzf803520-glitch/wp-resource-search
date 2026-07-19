@@ -18,6 +18,8 @@
   const SECTION_ID = "recentUpdatesSection";
   const ADMIN_SECTION_ID = "recentUpdatesSettingsSection";
   const STYLE_ID = "recentUpdatesStyles";
+  const PAGE_ID = "recentUpdatesDedicatedPage";
+  const PAGE_MODE = "recent";
 
   let currentConfig = null;
   let expanded = false;
@@ -336,11 +338,141 @@
         line-height: 1;
         text-align: center;
       }
+      .recent-updates-page {
+        position: fixed;
+        inset: 0;
+        z-index: 7000;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        background:
+          linear-gradient(180deg, #eaf8fb 0%, #eef8fa 52%, #e9f7f9 100%);
+      }
+      .recent-updates-page-shell {
+        width: min(100%, 520px);
+        min-height: 100%;
+        box-sizing: border-box;
+        margin: 0 auto;
+        padding: 12px 12px 30px;
+        background: rgba(255,255,255,.35);
+      }
+      .recent-updates-page-head {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        display: grid;
+        grid-template-columns: 38px minmax(0, 1fr) 38px;
+        align-items: center;
+        gap: 8px;
+        min-height: 58px;
+        margin: -12px -12px 12px;
+        padding: 8px 12px;
+        border-bottom: 1px solid rgba(217,226,232,.8);
+        background: rgba(255,255,255,.94);
+        backdrop-filter: blur(12px);
+      }
+      .recent-updates-page-back {
+        display: grid;
+        width: 36px;
+        height: 36px;
+        place-items: center;
+        border: 0;
+        border-radius: 50%;
+        color: #313944;
+        background: #f1f3f5;
+        font-size: 25px;
+        line-height: 1;
+        cursor: pointer;
+      }
+      .recent-updates-page-title {
+        min-width: 0;
+        text-align: center;
+      }
+      .recent-updates-page-title strong {
+        display: block;
+        overflow: hidden;
+        color: #27303c;
+        font-size: 18px;
+        font-weight: 800;
+        line-height: 1.35;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .recent-updates-page-title small {
+        display: block;
+        margin-top: 2px;
+        color: #8a919c;
+        font-size: 10px;
+        line-height: 1.3;
+      }
+      .recent-updates-page-search {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 44px;
+        margin-bottom: 12px;
+        border-radius: 14px;
+        padding: 0 14px;
+        background: #fff;
+        box-shadow: 0 4px 16px rgba(37,48,64,.07);
+      }
+      .recent-updates-page-search span {
+        flex: none;
+        color: #9aa1ab;
+        font-size: 17px;
+      }
+      .recent-updates-page-search input {
+        min-width: 0;
+        flex: 1;
+        border: 0;
+        outline: 0;
+        color: #333b46;
+        background: transparent;
+        font-size: 13px;
+      }
+      .recent-updates-page-card {
+        border-radius: 16px;
+        padding: 14px 12px;
+        background: #fff;
+        box-shadow: 0 6px 20px rgba(37,48,64,.08);
+      }
+      .recent-updates-page-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 11px;
+        padding: 0 2px;
+      }
+      .recent-updates-page-summary strong {
+        color: #303844;
+        font-size: 15px;
+        font-weight: 800;
+      }
+      .recent-updates-page-summary span {
+        color: #8a919b;
+        font-size: 11px;
+      }
+      .recent-updates-page-empty {
+        border-radius: 12px;
+        padding: 34px 18px;
+        color: #8a919b;
+        background: #f4f5f6;
+        font-size: 13px;
+        text-align: center;
+      }
+      body.recent-updates-page-open {
+        overflow: hidden;
+      }
       @media (max-width: 430px) {
         .recent-updates-section {
           width: 100%;
           margin: 12px 0;
           padding: 14px 14px;
+        }
+        .recent-updates-page-shell {
+          width: 100%;
+          padding-left: 10px;
+          padding-right: 10px;
         }
       }
     `;
@@ -449,7 +581,7 @@
 
     ensureStyles();
 
-    const displayed = expanded ? resources : resources.slice(0, values.limit);
+    const displayed = resources.slice(0, values.limit);
     const canExpand = resources.length > values.limit;
 
     const section = document.createElement("section");
@@ -464,7 +596,7 @@
         ${
           canExpand
             ? `<button class="recent-updates-more" type="button" data-recent-updates-more>
-                ${escapeHtml(expanded ? "收起" : values.moreText)} ›
+                ${escapeHtml(values.moreText)} ›
               </button>`
             : ""
         }
@@ -474,13 +606,10 @@
       </div>
     `;
 
-    section.querySelector("[data-recent-updates-more]")?.addEventListener("click", () => {
-      expanded = !expanded;
-      renderPublic(config);
-      document.getElementById(SECTION_ID)?.scrollIntoView({
-        behavior: "smooth",
-        block: "nearest"
-      });
+    section.querySelector("[data-recent-updates-more]")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      window.location.href = `/search.html?view=${PAGE_MODE}`;
     });
 
     const placement = findPlacementTarget(config);
@@ -491,30 +620,142 @@
     }
   }
 
+
+  function isDedicatedRecentPage() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("view") === PAGE_MODE;
+  }
+
+  function dedicatedItemMarkup(resource, index, config) {
+    return itemMarkup(resource, index, config);
+  }
+
+  function closeDedicatedPage() {
+    document.getElementById(PAGE_ID)?.remove();
+    document.body.classList.remove("recent-updates-page-open");
+
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      window.location.href = "/";
+    }
+  }
+
+  function renderDedicatedRecentPage(config, keyword = "") {
+    ensureStyles();
+
+    let page = document.getElementById(PAGE_ID);
+    if (!page) {
+      page = document.createElement("section");
+      page.id = PAGE_ID;
+      page.className = "recent-updates-page";
+      document.body.appendChild(page);
+    }
+
+    document.body.classList.add("recent-updates-page-open");
+
+    const values = valuesFromConfig(config);
+    const query = normalize(keyword).toLowerCase();
+    const allRecent = recentResources(config);
+    const filtered = query
+      ? allRecent.filter((resource) => {
+          const searchable = [
+            resource.title,
+            resource.artTitle,
+            resource.category,
+            resource.update,
+            ...sourceLabels(resource, config)
+          ].join(" ").toLowerCase();
+          return searchable.includes(query);
+        })
+      : allRecent;
+
+    page.innerHTML = `
+      <div class="recent-updates-page-shell">
+        <header class="recent-updates-page-head">
+          <button class="recent-updates-page-back" type="button"
+            data-recent-page-back aria-label="返回">‹</button>
+          <div class="recent-updates-page-title">
+            <strong>${escapeHtml(values.title)}</strong>
+            <small>按最后保存时间倒序排列</small>
+          </div>
+          <span></span>
+        </header>
+
+        <label class="recent-updates-page-search">
+          <span>⌕</span>
+          <input type="search" data-recent-page-search
+            value="${escapeHtml(keyword)}"
+            placeholder="搜索最近更新资源" />
+        </label>
+
+        <div class="recent-updates-page-card">
+          <div class="recent-updates-page-summary">
+            <strong>最近更新资源</strong>
+            <span>共 ${filtered.length} 条</span>
+          </div>
+
+          ${
+            filtered.length
+              ? `<div class="recent-updates-list">
+                  ${filtered.map((resource, index) => (
+                    dedicatedItemMarkup(resource, index, config)
+                  )).join("")}
+                </div>`
+              : `<div class="recent-updates-page-empty">
+                  没有找到符合条件的最近更新资源
+                </div>`
+          }
+        </div>
+      </div>
+    `;
+
+    page.querySelector("[data-recent-page-back]")?.addEventListener(
+      "click",
+      closeDedicatedPage
+    );
+
+    const searchInput = page.querySelector("[data-recent-page-search]");
+    searchInput?.addEventListener("input", () => {
+      const cursorPosition = searchInput.selectionStart || 0;
+      renderDedicatedRecentPage(config, searchInput.value);
+      const nextInput = document.querySelector("[data-recent-page-search]");
+      nextInput?.focus();
+      nextInput?.setSelectionRange(cursorPosition, cursorPosition);
+    });
+  }
+
   async function refreshPublic() {
     try {
       const nextConfig = await fetchConfig(false);
       currentConfig = nextConfig;
-      renderPublic(currentConfig);
+
+      if (isDedicatedRecentPage()) {
+        renderDedicatedRecentPage(currentConfig);
+      } else {
+        renderPublic(currentConfig);
+      }
     } catch {
-      // Keep the existing section during a temporary wake-up/network error.
+      // Keep the existing page during a temporary wake-up/network error.
     }
   }
 
   function startPublic() {
     refreshPublic();
 
-    const observer = new MutationObserver(() => {
-      if (currentConfig && !document.getElementById(SECTION_ID)) {
-        clearTimeout(publicTimer);
-        publicTimer = setTimeout(() => renderPublic(currentConfig), 100);
-      }
-    });
+    if (!isDedicatedRecentPage()) {
+      const observer = new MutationObserver(() => {
+        if (currentConfig && !document.getElementById(SECTION_ID)) {
+          clearTimeout(publicTimer);
+          publicTimer = setTimeout(() => renderPublic(currentConfig), 100);
+        }
+      });
 
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
+    }
 
     setInterval(refreshPublic, 20000);
   }
