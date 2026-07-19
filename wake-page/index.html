@@ -1,1 +1,563 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#eaf8fb" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>WP 资源搜索｜正在启动</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #26313f;
+      --muted: #7d8794;
+      --line: rgba(60, 80, 98, .10);
+      --paper: rgba(255, 255, 255, .90);
+      --accent: #ff765f;
+      --accent-2: #ffad72;
+      --cyan: #63c5cb;
+      --green: #33c578;
+    }
 
+    * { box-sizing: border-box; }
+
+    html, body {
+      min-height: 100%;
+      margin: 0;
+      font-family:
+        Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 14% 12%, rgba(115, 213, 220, .28), transparent 32%),
+        radial-gradient(circle at 88% 22%, rgba(255, 155, 110, .20), transparent 30%),
+        linear-gradient(160deg, #eaf8fb 0%, #f7fbfc 48%, #edf8fa 100%);
+    }
+
+    body {
+      display: grid;
+      min-height: 100dvh;
+      place-items: center;
+      padding:
+        max(22px, env(safe-area-inset-top))
+        18px
+        max(22px, env(safe-area-inset-bottom));
+      overflow-x: hidden;
+    }
+
+    .ambient {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .bubble {
+      position: absolute;
+      border: 1px solid rgba(255,255,255,.65);
+      border-radius: 36%;
+      background: rgba(255,255,255,.18);
+      backdrop-filter: blur(8px);
+      animation: drift 9s ease-in-out infinite alternate;
+    }
+
+    .bubble.one { width: 130px; height: 130px; top: 8%; left: -42px; }
+    .bubble.two { width: 92px; height: 92px; right: 4%; top: 15%; animation-delay: -2s; }
+    .bubble.three { width: 150px; height: 150px; right: -58px; bottom: 8%; animation-delay: -4s; }
+
+    @keyframes drift {
+      to { transform: translate3d(10px, -18px, 0) rotate(8deg); }
+    }
+
+    .shell {
+      position: relative;
+      width: min(100%, 430px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 11px;
+      margin-bottom: 16px;
+    }
+
+    .logo {
+      display: grid;
+      width: 48px;
+      height: 48px;
+      place-items: center;
+      border-radius: 15px;
+      color: #fff;
+      background: linear-gradient(145deg, var(--accent), var(--accent-2));
+      box-shadow: 0 12px 28px rgba(255, 118, 95, .27);
+      font-size: 16px;
+      font-weight: 900;
+      letter-spacing: -.5px;
+    }
+
+    .brand-copy strong {
+      display: block;
+      font-size: 17px;
+      line-height: 1.3;
+    }
+
+    .brand-copy span {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: .7px;
+      text-transform: uppercase;
+    }
+
+    .card {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.82);
+      border-radius: 28px;
+      padding: 30px 25px 23px;
+      background: var(--paper);
+      box-shadow:
+        0 26px 70px rgba(51, 79, 94, .14),
+        inset 0 1px 0 rgba(255,255,255,.82);
+      backdrop-filter: blur(18px);
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      width: 190px;
+      height: 190px;
+      top: -118px;
+      right: -80px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(99,197,203,.22), transparent 70%);
+    }
+
+    .loader {
+      position: relative;
+      display: grid;
+      width: 92px;
+      height: 92px;
+      margin: 0 auto 22px;
+      place-items: center;
+    }
+
+    .loader-ring {
+      position: absolute;
+      inset: 0;
+      border: 5px solid rgba(99,197,203,.13);
+      border-top-color: var(--cyan);
+      border-right-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 1.15s linear infinite;
+    }
+
+    .loader-core {
+      display: grid;
+      width: 62px;
+      height: 62px;
+      place-items: center;
+      border-radius: 20px;
+      color: #fff;
+      background: linear-gradient(145deg, var(--accent), var(--accent-2));
+      box-shadow: 0 12px 24px rgba(255,118,95,.22);
+      font-size: 18px;
+      font-weight: 900;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    h1 {
+      margin: 0;
+      text-align: center;
+      font-size: 23px;
+      line-height: 1.35;
+    }
+
+    .subtitle {
+      min-height: 44px;
+      margin: 9px auto 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.7;
+      text-align: center;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 23px;
+      font-size: 11px;
+    }
+
+    .status-label {
+      display: inline-flex;
+      min-width: 0;
+      align-items: center;
+      gap: 7px;
+      color: #5f6975;
+    }
+
+    .status-dot {
+      flex: none;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 5px rgba(51,197,120,.12);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      50% { transform: scale(.72); opacity: .62; }
+    }
+
+    .elapsed {
+      flex: none;
+      color: #9aa2ad;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .progress {
+      height: 8px;
+      margin-top: 12px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #edf1f3;
+    }
+
+    .progress > i {
+      display: block;
+      width: 12%;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--cyan), var(--accent));
+      box-shadow: 0 0 16px rgba(99,197,203,.28);
+      transition: width .45s ease;
+    }
+
+    .steps {
+      display: grid;
+      gap: 9px;
+      margin-top: 20px;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 24px minmax(0,1fr) auto;
+      align-items: center;
+      gap: 9px;
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 7px 10px;
+      color: #7b8490;
+      background: rgba(247,249,250,.72);
+      font-size: 11px;
+    }
+
+    .step-icon {
+      display: grid;
+      width: 24px;
+      height: 24px;
+      place-items: center;
+      border-radius: 8px;
+      background: #edf2f4;
+      font-size: 12px;
+    }
+
+    .step.active {
+      border-color: rgba(99,197,203,.22);
+      color: #384451;
+      background: rgba(234,249,250,.85);
+    }
+
+    .step.done .step-icon {
+      color: #fff;
+      background: var(--green);
+    }
+
+    .step-state {
+      color: #a4abb4;
+      font-size: 10px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    button {
+      min-height: 44px;
+      flex: 1;
+      border: 0;
+      border-radius: 13px;
+      padding: 0 15px;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 750;
+      cursor: pointer;
+    }
+
+    .retry {
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent), #ff9365);
+      box-shadow: 0 10px 22px rgba(255,118,95,.20);
+    }
+
+    .direct {
+      color: #5f6874;
+      background: #eef2f4;
+    }
+
+    .footnote {
+      margin: 16px 4px 0;
+      color: #9ba3ad;
+      font-size: 10px;
+      line-height: 1.6;
+      text-align: center;
+    }
+
+    .ready .loader-ring {
+      border-color: rgba(51,197,120,.18);
+      border-top-color: var(--green);
+      border-right-color: var(--green);
+      animation-duration: .55s;
+    }
+
+    .ready .loader-core {
+      background: linear-gradient(145deg, #35c979, #6bd99d);
+    }
+
+    @media (max-width: 420px) {
+      .card {
+        border-radius: 23px;
+        padding: 27px 18px 20px;
+      }
+
+      h1 { font-size: 21px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="ambient" aria-hidden="true">
+    <span class="bubble one"></span>
+    <span class="bubble two"></span>
+    <span class="bubble three"></span>
+  </div>
+
+  <main class="shell" id="shell">
+    <div class="brand">
+      <span class="logo">WP</span>
+      <span class="brand-copy">
+        <strong>网盘资源搜索</strong>
+        <span>Resource Search</span>
+      </span>
+    </div>
+
+    <section class="card">
+      <div class="loader">
+        <span class="loader-ring"></span>
+        <span class="loader-core" id="loaderCore">WP</span>
+      </div>
+
+      <h1 id="title">资源服务正在启动</h1>
+      <p class="subtitle" id="subtitle">
+        正在唤醒资源服务器，通常需要几十秒。准备完成后会自动进入网站。
+      </p>
+
+      <div class="status-row">
+        <span class="status-label">
+          <i class="status-dot"></i>
+          <span id="statusText">正在连接服务器</span>
+        </span>
+        <span class="elapsed" id="elapsed">00:00</span>
+      </div>
+
+      <div class="progress" aria-label="启动进度">
+        <i id="progressBar"></i>
+      </div>
+
+      <div class="steps">
+        <div class="step active" id="step1">
+          <span class="step-icon">1</span>
+          <span>连接资源服务</span>
+          <span class="step-state">进行中</span>
+        </div>
+        <div class="step" id="step2">
+          <span class="step-icon">2</span>
+          <span>加载资源数据库</span>
+          <span class="step-state">等待</span>
+        </div>
+        <div class="step" id="step3">
+          <span class="step-icon">3</span>
+          <span>进入资源搜索页面</span>
+          <span class="step-state">等待</span>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="retry" type="button" id="retryButton">立即重新检测</button>
+        <button class="direct" type="button" id="directButton">直接打开</button>
+      </div>
+
+      <p class="footnote">
+        免费服务器长时间无人访问时会自动休眠；本页面会替你完成唤醒，无需反复刷新。
+      </p>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      const BACKEND = "https://wp-resource-search-hzf.onrender.com";
+      const params = new URLSearchParams(location.search);
+      const requestedTarget = params.get("to") || "/";
+      const target = requestedTarget.startsWith("/") && !requestedTarget.startsWith("//")
+        ? requestedTarget
+        : "/";
+
+      const title = document.querySelector("#title");
+      const subtitle = document.querySelector("#subtitle");
+      const statusText = document.querySelector("#statusText");
+      const elapsed = document.querySelector("#elapsed");
+      const progressBar = document.querySelector("#progressBar");
+      const shell = document.querySelector("#shell");
+      const loaderCore = document.querySelector("#loaderCore");
+      const retryButton = document.querySelector("#retryButton");
+      const directButton = document.querySelector("#directButton");
+      const steps = [1, 2, 3].map(number => document.querySelector(`#step${number}`));
+
+      let startedAt = Date.now();
+      let attempt = 0;
+      let running = false;
+      let finished = false;
+      let timer = null;
+
+      function setStep(index, state) {
+        const step = steps[index];
+        if (!step) return;
+
+        step.classList.toggle("active", state === "active");
+        step.classList.toggle("done", state === "done");
+        step.querySelector(".step-icon").textContent = state === "done" ? "✓" : String(index + 1);
+        step.querySelector(".step-state").textContent =
+          state === "done" ? "完成" : state === "active" ? "进行中" : "等待";
+      }
+
+      function updateElapsed() {
+        const seconds = Math.floor((Date.now() - startedAt) / 1000);
+        const minutes = String(Math.floor(seconds / 60)).padStart(2, "0");
+        const remainder = String(seconds % 60).padStart(2, "0");
+        elapsed.textContent = `${minutes}:${remainder}`;
+
+        if (!finished) {
+          const synthetic = Math.min(88, 10 + seconds * 1.15 + attempt * 4);
+          progressBar.style.width = `${synthetic}%`;
+
+          if (seconds > 10) {
+            setStep(0, "done");
+            setStep(1, "active");
+            statusText.textContent = "服务器正在唤醒，请稍候";
+          }
+
+          if (seconds > 35) {
+            subtitle.textContent = "服务器正在完成启动，首次访问可能稍慢，请保持页面打开。";
+          }
+
+          if (seconds > 90) {
+            statusText.textContent = "启动时间较长，正在持续重试";
+            retryButton.textContent = "再次检测";
+          }
+        }
+      }
+
+      async function probe() {
+        if (running || finished) return;
+        running = true;
+        attempt += 1;
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 12000);
+
+        try {
+          const response = await fetch(
+            `${BACKEND}/api/health?_=${Date.now()}`,
+            {
+              cache: "no-store",
+              signal: controller.signal,
+              mode: "cors"
+            }
+          );
+
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+          const payload = await response.json();
+          if (!payload || payload.ok !== true || payload.status !== "ready") {
+            throw new Error("服务仍在启动");
+          }
+
+          finished = true;
+          clearInterval(timer);
+
+          shell.classList.add("ready");
+          loaderCore.textContent = "✓";
+          title.textContent = "资源服务已准备完成";
+          subtitle.textContent = "正在进入资源搜索页面，请稍候……";
+          statusText.textContent = "服务已就绪";
+          progressBar.style.width = "100%";
+
+          setStep(0, "done");
+          setStep(1, "done");
+          setStep(2, "active");
+
+          setTimeout(() => {
+            setStep(2, "done");
+            location.replace(`${BACKEND}${target}`);
+          }, 650);
+        } catch (error) {
+          if (!finished) {
+            statusText.textContent =
+              attempt <= 2 ? "正在唤醒服务器" : "服务器启动中，正在自动重试";
+          }
+        } finally {
+          clearTimeout(timeout);
+          running = false;
+        }
+      }
+
+      retryButton.addEventListener("click", () => {
+        retryButton.textContent = "正在检测…";
+        probe().finally(() => {
+          if (!finished) retryButton.textContent = "立即重新检测";
+        });
+      });
+
+      directButton.addEventListener("click", () => {
+        location.href = `${BACKEND}${target}`;
+      });
+
+      updateElapsed();
+      probe();
+
+      timer = setInterval(() => {
+        updateElapsed();
+        probe();
+      }, 2500);
+    })();
+  </script>
+</body>
+</html>
