@@ -500,6 +500,10 @@ function normalizeConfig(input, previous = {}) {
       category: cleanText(resource.category || "其他", 40),
       heat: Math.max(0, Math.min(999999, Number(resource.heat) || 0)),
       rating: Math.max(0, Math.min(10, Number(resource.rating) || 0)),
+      year: (() => {
+        const value = Math.trunc(Number(resource.year) || 0);
+        return value >= 1900 && value <= 2100 ? value : 0;
+      })(),
       update: cleanText(resource.update, 80),
       image: cleanUrl(resource.image),
       colors: Array.isArray(resource.colors) && resource.colors.length >= 2
@@ -517,6 +521,7 @@ function normalizeConfig(input, previous = {}) {
       category: previousResource.category,
       heat: previousResource.heat,
       rating: previousResource.rating,
+      year: previousResource.year,
       update: previousResource.update,
       image: previousResource.image,
       colors: previousResource.colors,
@@ -840,6 +845,7 @@ async function serveStatic(req, res, url) {
       const disclaimerScript = '<script src="/disclaimer-config.js?v=20260719-1"></script>';
       const qrPromoScript = '<script src="/qr-promo-config.js?v=20260719-1"></script>';
       const recentUpdatesScript = '<script src="/recent-updates-config.js?v=20260719-12"></script>';
+      const yearConfigScript = '<script src="/year-config.js?v=20260720-1"></script>';
       const scripts = [
         !html.includes("/notice-config.js") ? noticeScript : "",
         ["/index.html", "/search.html"].includes(pathname) && !html.includes("/all-links-modal.js")
@@ -853,6 +859,9 @@ async function serveStatic(req, res, url) {
           : "",
         ["/index.html", "/search.html", "/admin.html"].includes(pathname) && !html.includes("/recent-updates-config.js")
           ? recentUpdatesScript
+          : "",
+        ["/index.html", "/search.html", "/admin.html"].includes(pathname) && !html.includes("/year-config.js")
+          ? yearConfigScript
           : ""
       ].filter(Boolean).join("\n");
       if (scripts) {
