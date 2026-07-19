@@ -345,7 +345,58 @@
     document.head.appendChild(style);
   }
 
-  function findPlacementTarget() {
+  function elementText(element) {
+    return normalize(element?.textContent);
+  }
+
+  function closestSectionContainer(element) {
+    if (!element) return null;
+
+    return element.closest(
+      "section, article, .section, .panel, .card, .resource-section, .ranking-section, .content-card"
+    ) || element.parentElement?.parentElement || element.parentElement;
+  }
+
+  function findHotResourcesSection(config) {
+    const configuredTitle = normalize(config?.settings?.hotTitle) || "🔥 热门资源";
+    const titleCandidates = [configuredTitle, "🔥 热门资源", "热门资源"];
+
+    const headingSelectors = [
+      "h1", "h2", "h3", "h4",
+      ".section-title", ".panel-title", ".card-title",
+      "[data-section-title]", "[class*='title']"
+    ];
+
+    for (const selector of headingSelectors) {
+      for (const element of document.querySelectorAll(selector)) {
+        const text = elementText(element);
+        if (!text) continue;
+
+        const matched = titleCandidates.some((title) => {
+          const plainTitle = title.replace(/^🔥\s*/, "");
+          return text === title || text === plainTitle || text.includes(plainTitle);
+        });
+
+        if (!matched) continue;
+
+        const section = closestSectionContainer(element);
+        if (section && section.id !== SECTION_ID) return section;
+      }
+    }
+
+    return null;
+  }
+
+  function findPlacementTarget(config) {
+    const hotSection = findHotResourcesSection(config);
+
+    if (hotSection?.parentElement) {
+      return {
+        parent: hotSection.parentElement,
+        before: hotSection.nextElementSibling
+      };
+    }
+
     const disclaimer = document.getElementById("configurableDisclaimerCard");
     if (disclaimer?.parentElement) {
       return { parent: disclaimer.parentElement, before: disclaimer };
@@ -430,7 +481,7 @@
       });
     });
 
-    const placement = findPlacementTarget();
+    const placement = findPlacementTarget(config);
     if (placement.before) {
       placement.parent.insertBefore(section, placement.before);
     } else {
