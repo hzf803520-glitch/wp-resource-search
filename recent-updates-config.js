@@ -511,6 +511,20 @@
         font-weight: 700;
         line-height: 1.2;
       }
+      .configured-rating-value {
+        display: inline-flex;
+        flex: none;
+        align-items: center;
+        min-height: 17px;
+        margin: 0 3px;
+        padding: 0;
+        color: #f08a00;
+        background: transparent;
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 1.2;
+        white-space: nowrap;
+      }
       .recent-update-arrow {
         color: #aab0b8;
         font-size: 22px;
@@ -1113,6 +1127,95 @@
     }, true);
   }
 
+
+  function configuredResourceMap(config) {
+    return new Map(
+      (Array.isArray(config?.resources) ? config.resources : [])
+        .map((resource) => [String(resource.id), resource])
+    );
+  }
+
+  function findMetricContainer(card) {
+    const known = card.querySelector(
+      ".recent-update-meta,[class*='resource-meta'],[class*='item-meta'],[class*='card-meta']"
+    );
+    if (known) return known;
+
+    const heatLeaf = [...card.querySelectorAll("span,small,em,strong,div")]
+      .find((element) => {
+        const value = normalize(element.textContent);
+        return /^🔥\s*\d+/.test(value) || value.includes("🔥");
+      });
+
+    if (heatLeaf?.parentElement) return heatLeaf.parentElement;
+
+    const tagLeaf = [...card.querySelectorAll("span,small,em")]
+      .find((element) => {
+        const value = normalize(element.textContent);
+        return /网盘|电影|影视|动漫|短剧|小说|学习资料/.test(value);
+      });
+
+    return tagLeaf?.parentElement || null;
+  }
+
+  function applyConfiguredRatings(config) {
+    if (!config) return;
+
+    const resources = configuredResourceMap(config);
+
+    document.querySelectorAll("[data-resource-id]").forEach((target) => {
+      const resourceId = String(target.dataset.resourceId || "");
+      const resource = resources.get(resourceId);
+      if (!resource) return;
+
+      const card = target.closest("button,article,li,.resource-card,.resource-item,.recent-update-item")
+        || target;
+
+      if (
+        card.querySelector("[data-configured-rating]")
+        || card.querySelector(".recent-update-rating")
+      ) {
+        return;
+      }
+
+      const rating = Math.max(0, Math.min(10, Number(resource.rating) || 0));
+      const badge = document.createElement("span");
+      badge.setAttribute("data-configured-rating", "true");
+      badge.className = "configured-rating-value";
+      badge.textContent = `⭐ ${rating.toFixed(1)}`;
+      badge.title = `评分 ${rating.toFixed(1)}`;
+
+      const metricContainer = findMetricContainer(card);
+
+      if (metricContainer) {
+        const heatElement = [...metricContainer.children]
+          .find((element) => normalize(element.textContent).includes("🔥"));
+
+        if (heatElement) {
+          metricContainer.insertBefore(badge, heatElement);
+        } else {
+          metricContainer.appendChild(badge);
+        }
+      } else {
+        const arrow = card.querySelector(
+          ".recent-update-arrow,[class*='arrow'],[class*='chevron']"
+        );
+
+        if (arrow) {
+          arrow.insertAdjacentElement("beforebegin", badge);
+        } else {
+          card.appendChild(badge);
+        }
+      }
+    });
+  }
+
+  function scheduleConfiguredRatings(config) {
+    requestAnimationFrame(() => applyConfiguredRatings(config));
+    setTimeout(() => applyConfiguredRatings(config), 120);
+    setTimeout(() => applyConfiguredRatings(config), 420);
+  }
+
   async function refreshPublic() {
     try {
       const nextConfig = await fetchConfig(false);
@@ -1123,6 +1226,8 @@
       } else {
         renderPublic(currentConfig);
       }
+
+      scheduleConfiguredRatings(currentConfig);
     } catch {
       // Keep the existing page during a temporary wake-up/network error.
     }
@@ -1151,6 +1256,15 @@
       });
 
       observer.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
+
+      const ratingObserver = new MutationObserver(() => {
+        if (currentConfig) scheduleConfiguredRatings(currentConfig);
+      });
+
+      ratingObserver.observe(document.body, {
         childList: true,
         subtree: true
       });
