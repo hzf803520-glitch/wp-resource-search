@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  // Build: keep the join-group button inside the detected phone page boundary.
+  // Build: refined white join-group card, kept inside the phone page boundary.
 
   const KEYS = {
     enabled: "qrPromoEnabled",
@@ -372,38 +372,73 @@
         left: 14px;
         bottom: 82px;
         display: grid;
-        grid-template-columns: 42px minmax(0, 1fr);
+        grid-template-columns: 44px minmax(0, 1fr) 18px;
         align-items: center;
-        gap: 9px;
-        min-width: 142px;
-        min-height: 58px;
-        border: 0;
-        border-radius: 16px;
-        padding: 8px 13px 8px 9px;
-        color: #fff;
-        background: linear-gradient(135deg, #ff705d, #ff9461);
-        box-shadow: 0 12px 28px rgba(255, 112, 93, .32);
+        gap: 10px;
+        min-width: 158px;
+        min-height: 62px;
+        box-sizing: border-box;
+        border: 1px solid rgba(255, 126, 91, .14);
+        border-radius: 18px;
+        padding: 8px 10px 8px 8px;
+        color: #2f3540;
+        background: rgba(255, 255, 255, .96);
+        box-shadow:
+          0 12px 30px rgba(44, 54, 72, .16),
+          0 2px 8px rgba(255, 126, 91, .10);
+        backdrop-filter: blur(10px);
         cursor: pointer;
         text-align: left;
-        transition: transform .18s ease, box-shadow .18s ease;
+        transition:
+          transform .18s ease,
+          box-shadow .18s ease,
+          border-color .18s ease;
+      }
+      .qr-promo-floating::after {
+        content: "›";
+        display: grid;
+        width: 18px;
+        height: 18px;
+        place-items: center;
+        color: #ff7b5f;
+        font-size: 22px;
+        font-weight: 500;
+        line-height: 1;
       }
       .qr-promo-floating:hover {
         transform: translateY(-2px);
-        box-shadow: 0 15px 32px rgba(255, 112, 93, .38);
+        border-color: rgba(255, 126, 91, .28);
+        box-shadow:
+          0 16px 36px rgba(44, 54, 72, .20),
+          0 4px 12px rgba(255, 126, 91, .14);
       }
       .qr-promo-floating:active {
         transform: scale(.98);
       }
       .qr-promo-floating-icon {
+        position: relative;
         display: grid;
-        width: 42px;
-        height: 42px;
+        width: 44px;
+        height: 44px;
         place-items: center;
-        border-radius: 13px;
-        color: #ff765f;
-        background: rgba(255,255,255,.94);
-        font-size: 22px;
+        border-radius: 14px;
+        color: #fff;
+        background: linear-gradient(145deg, #ff6f5e, #ff9d67);
+        box-shadow: 0 7px 16px rgba(255, 115, 91, .26);
+        font-size: 21px;
         line-height: 1;
+      }
+      .qr-promo-floating-icon::after {
+        content: "";
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        width: 7px;
+        height: 7px;
+        border: 2px solid #fff;
+        border-radius: 50%;
+        background: #35c96f;
+        box-shadow: 0 0 0 2px rgba(53, 201, 111, .14);
       }
       .qr-promo-floating-copy {
         min-width: 0;
@@ -411,20 +446,21 @@
       .qr-promo-floating-copy strong {
         display: block;
         overflow: hidden;
-        color: #fff;
+        color: #2d3440;
         font-size: 14px;
         font-weight: 800;
         line-height: 1.35;
+        letter-spacing: .1px;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
       .qr-promo-floating-copy small {
         display: block;
         overflow: hidden;
-        margin-top: 2px;
-        color: rgba(255,255,255,.88);
+        margin-top: 3px;
+        color: #ff765d;
         font-size: 10px;
-        font-weight: 500;
+        font-weight: 600;
         line-height: 1.3;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -503,7 +539,8 @@
         .qr-promo-floating {
           right: auto;
           bottom: 78px;
-          min-width: 132px;
+          min-width: 148px;
+          max-width: calc(100vw - 28px);
         }
         .qr-promo-overlay {
           align-items: end;
