@@ -759,10 +759,14 @@ async function serveStatic(req, res, url) {
       let html = content.toString("utf8");
       const noticeScript = '<script src="/notice-config.js?v=20260719-5"></script>';
       const allLinksScript = '<script src="/all-links-modal.js?v=20260719-1"></script>';
+      const disclaimerScript = '<script src="/disclaimer-config.js?v=20260719-1"></script>';
       const scripts = [
         !html.includes("/notice-config.js") ? noticeScript : "",
         ["/index.html", "/search.html"].includes(pathname) && !html.includes("/all-links-modal.js")
           ? allLinksScript
+          : "",
+        ["/index.html", "/search.html", "/admin.html"].includes(pathname) && !html.includes("/disclaimer-config.js")
+          ? disclaimerScript
           : ""
       ].filter(Boolean).join("\n");
       if (scripts) {
