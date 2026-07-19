@@ -7,7 +7,6 @@
   const SCROLL_KEY = "wp-resource-search:admin-scroll:v1";
   const originalFetch = window.fetch.bind(window);
   let restorePromise = null;
-  let saveTimer = null;
   let dbPromise = null;
 
   function requestPath(input) {
@@ -289,17 +288,6 @@
     return response;
   };
 
-  function scheduleAutoSave() {
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      const button = document.querySelector("#saveButton");
-      const status = document.querySelector("#saveStatus");
-      const adminView = document.querySelector("#adminView");
-      if (!button || !status || !adminView || adminView.hidden || button.hidden || button.disabled) return;
-      if (status.textContent.includes("未保存")) button.click();
-    }, 900);
-  }
-
   function restoreCurrentAdminPage() {
     const adminView = document.querySelector("#adminView");
     if (!adminView || adminView.hidden) return;
@@ -352,32 +340,24 @@
     }
   }
 
-  function startAutoSaveObserver() {
+  function hasUnsavedChanges() {
     const status = document.querySelector("#saveStatus");
-    if (!status) return;
+    return Boolean(status && status.textContent.includes("未保存"));
+  }
 
+  function startManualSaveProtection() {
     startPageMemory();
 
-    const observer = new MutationObserver(scheduleAutoSave);
-    observer.observe(status, {
-      childList: true,
-      characterData: true,
-      subtree: true,
-      attributes: true
+    window.addEventListener("beforeunload", (event) => {
+      if (!hasUnsavedChanges()) return;
+      event.preventDefault();
+      event.returnValue = "";
     });
-
-    document.addEventListener("change", scheduleAutoSave, true);
-    document.addEventListener("click", (event) => {
-      if (event.target.closest("#addResourceButton,#addSourceButton,[data-action^='delete-']")) {
-        scheduleAutoSave();
-      }
-    }, true);
-    window.addEventListener("online", scheduleAutoSave);
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", startAutoSaveObserver, { once: true });
+    document.addEventListener("DOMContentLoaded", startManualSaveProtection, { once: true });
   } else {
-    startAutoSaveObserver();
+    startManualSaveProtection();
   }
 })();
