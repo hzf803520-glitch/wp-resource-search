@@ -45,6 +45,17 @@
       overflow-x: hidden;
     }
 
+    .shell,
+    .ambient {
+      opacity: 0;
+      transition: opacity .28s ease;
+    }
+
+    body.show-wake-page .shell,
+    body.show-wake-page .ambient {
+      opacity: 1;
+    }
+
     .ambient {
       position: fixed;
       inset: 0;
@@ -377,7 +388,7 @@
 
       <h1 id="title">资源服务正在启动</h1>
       <p class="subtitle" id="subtitle">
-        正在唤醒资源服务器，通常需要几十秒。准备完成后会自动进入网站。
+        正在检测资源服务器；只有服务器休眠时才会显示本页面。
       </p>
 
       <div class="status-row">
@@ -416,7 +427,7 @@
       </div>
 
       <p class="footnote">
-        免费服务器长时间无人访问时会自动休眠；本页面会替你完成唤醒，无需反复刷新。
+        服务器在线时会直接进入首页；休眠时会自动唤醒并跳转，无需手动点击。
       </p>
     </section>
   </main>
@@ -443,9 +454,15 @@
 
       let startedAt = Date.now();
       let attempt = 0;
-      let running = false;
       let finished = false;
-      let timer = null;
+      let requestRunning = false;
+      let retryTimer = null;
+      let elapsedTimer = null;
+      let revealTimer = null;
+
+      function destination() {
+        return `${BACKEND}${target}`;
+      }
 
       function setStep(index, state) {
         const step = steps[index];
@@ -453,110 +470,167 @@
 
         step.classList.toggle("active", state === "active");
         step.classList.toggle("done", state === "done");
-        step.querySelector(".step-icon").textContent = state === "done" ? "✓" : String(index + 1);
+        step.querySelector(".step-icon").textContent =
+          state === "done" ? "✓" : String(index + 1);
         step.querySelector(".step-state").textContent =
           state === "done" ? "完成" : state === "active" ? "进行中" : "等待";
       }
 
+      function revealWakePage() {
+        if (!finished) document.body.classList.add("show-wake-page");
+      }
+
+      function finishAndRedirect() {
+        if (finished) return;
+        finished = true;
+
+        clearTimeout(retryTimer);
+        clearTimeout(revealTimer);
+        clearInterval(elapsedTimer);
+
+        document.body.classList.add("show-wake-page");
+        shell.classList.add("ready");
+        loaderCore.textContent = "✓";
+        title.textContent = "资源服务已准备完成";
+        subtitle.textContent = "正在自动进入资源搜索首页……";
+        statusText.textContent = "服务已就绪";
+        progressBar.style.width = "100%";
+
+        setStep(0, "done");
+        setStep(1, "done");
+        setStep(2, "active");
+
+        setTimeout(() => {
+          setStep(2, "done");
+          location.replace(destination());
+        }, 260);
+      }
+
+      window.addEventListener("wp-backend-ready", finishAndRedirect);
+
       function updateElapsed() {
+        if (finished) return;
+
         const seconds = Math.floor((Date.now() - startedAt) / 1000);
         const minutes = String(Math.floor(seconds / 60)).padStart(2, "0");
         const remainder = String(seconds % 60).padStart(2, "0");
         elapsed.textContent = `${minutes}:${remainder}`;
 
-        if (!finished) {
-          const synthetic = Math.min(88, 10 + seconds * 1.15 + attempt * 4);
-          progressBar.style.width = `${synthetic}%`;
+        const synthetic = Math.min(92, 12 + seconds * 1.3 + attempt * 3);
+        progressBar.style.width = `${synthetic}%`;
 
-          if (seconds > 10) {
-            setStep(0, "done");
-            setStep(1, "active");
-            statusText.textContent = "服务器正在唤醒，请稍候";
-          }
+        if (seconds >= 3) {
+          setStep(0, "done");
+          setStep(1, "active");
+          statusText.textContent = "服务器正在自动唤醒";
+        }
 
-          if (seconds > 35) {
-            subtitle.textContent = "服务器正在完成启动，首次访问可能稍慢，请保持页面打开。";
-          }
+        if (seconds >= 20) {
+          subtitle.textContent =
+            "服务器正在恢复运行，请保持页面打开，完成后会自动进入首页。";
+        }
 
-          if (seconds > 90) {
-            statusText.textContent = "启动时间较长，正在持续重试";
-            retryButton.textContent = "再次检测";
-          }
+        if (seconds >= 60) {
+          statusText.textContent = "仍在自动重试，无需点击按钮";
         }
       }
 
-      async function probe() {
-        if (running || finished) return;
-        running = true;
-        attempt += 1;
+      function loadReadyScript() {
+        return new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          script.async = true;
+          script.src = `${BACKEND}/api/wake-ready.js?_=${Date.now()}`;
+          script.onload = () => {
+            script.remove();
+            if (window.__WP_BACKEND_READY__ === true) {
+              resolve(true);
+            } else {
+              reject(new Error("ready flag missing"));
+            }
+          };
+          script.onerror = () => {
+            script.remove();
+            reject(new Error("script probe failed"));
+          };
+          document.head.appendChild(script);
 
+          setTimeout(() => {
+            if (script.isConnected) {
+              script.remove();
+              reject(new Error("script probe timeout"));
+            }
+          }, 12000);
+        });
+      }
+
+      async function fetchHealth() {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 12000);
+        const timeout = setTimeout(() => controller.abort(), 10000);
 
         try {
           const response = await fetch(
             `${BACKEND}/api/health?_=${Date.now()}`,
             {
               cache: "no-store",
-              signal: controller.signal,
-              mode: "cors"
+              mode: "cors",
+              signal: controller.signal
             }
           );
 
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
+          if (!response.ok) return false;
           const payload = await response.json();
-          if (!payload || payload.ok !== true || payload.status !== "ready") {
-            throw new Error("服务仍在启动");
-          }
-
-          finished = true;
-          clearInterval(timer);
-
-          shell.classList.add("ready");
-          loaderCore.textContent = "✓";
-          title.textContent = "资源服务已准备完成";
-          subtitle.textContent = "正在进入资源搜索页面，请稍候……";
-          statusText.textContent = "服务已就绪";
-          progressBar.style.width = "100%";
-
-          setStep(0, "done");
-          setStep(1, "done");
-          setStep(2, "active");
-
-          setTimeout(() => {
-            setStep(2, "done");
-            location.replace(`${BACKEND}${target}`);
-          }, 650);
-        } catch (error) {
-          if (!finished) {
-            statusText.textContent =
-              attempt <= 2 ? "正在唤醒服务器" : "服务器启动中，正在自动重试";
-          }
+          return Boolean(payload?.ok && payload?.status === "ready");
+        } catch {
+          return false;
         } finally {
           clearTimeout(timeout);
-          running = false;
         }
       }
 
-      retryButton.addEventListener("click", () => {
-        retryButton.textContent = "正在检测…";
-        probe().finally(() => {
-          if (!finished) retryButton.textContent = "立即重新检测";
-        });
-      });
+      async function probe() {
+        if (finished || requestRunning) return;
+        requestRunning = true;
+        attempt += 1;
 
+        try {
+          const result = await Promise.race([
+            loadReadyScript().catch(() => false),
+            fetchHealth()
+          ]);
+
+          if (result || window.__WP_BACKEND_READY__ === true) {
+            finishAndRedirect();
+            return;
+          }
+
+          statusText.textContent =
+            attempt <= 2 ? "正在连接服务器" : "服务器启动中，正在自动重试";
+        } finally {
+          requestRunning = false;
+
+          if (!finished) {
+            retryTimer = setTimeout(probe, 1800);
+          }
+        }
+      }
+
+      retryButton.textContent = "正在自动检测";
+      retryButton.disabled = true;
+      retryButton.style.cursor = "default";
+      retryButton.style.opacity = ".88";
+
+      directButton.textContent = "直接打开";
       directButton.addEventListener("click", () => {
-        location.href = `${BACKEND}${target}`;
+        location.href = destination();
       });
 
+      // If the service is already online, the user is redirected before this
+      // timer fires and never sees the wake page.
+      revealTimer = setTimeout(revealWakePage, 700);
+
+      elapsedTimer = setInterval(updateElapsed, 1000);
       updateElapsed();
       probe();
-
-      timer = setInterval(() => {
-        updateElapsed();
-        probe();
-      }, 2500);
     })();
   </script>
 </body>
