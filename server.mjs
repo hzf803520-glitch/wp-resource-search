@@ -751,22 +751,8 @@ async function serveStatic(req, res, url) {
   try {
     const info = await stat(filePath);
     if (!info.isFile()) throw new Error("Not a file");
-    let content = await readFile(filePath);
+    const content = await readFile(filePath);
     const extension = path.extname(filePath).toLowerCase();
-
-    // Load the configurable resource-expiry notice on both the public site
-    // and the admin console without requiring manual HTML edits.
-    if (extension === ".html") {
-      let html = content.toString("utf8");
-      const noticeScript = '<script src="/notice-config.js?v=20260719-1"></script>';
-      if (!html.includes("/notice-config.js")) {
-        html = /<\/body>/i.test(html)
-          ? html.replace(/<\/body>/i, `${noticeScript}\n</body>`)
-          : `${html}\n${noticeScript}`;
-      }
-      content = Buffer.from(html, "utf8");
-    }
-
     res.writeHead(200, {
       ...securityHeaders(),
       "Content-Type": MIME_TYPES[extension] || "application/octet-stream",
