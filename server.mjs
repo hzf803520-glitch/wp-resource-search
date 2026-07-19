@@ -599,6 +599,31 @@ function mergeAuthorizedConfig(input, current, session) {
 }
 
 async function handleApi(req, res, url) {
+  if (url.pathname === "/api/health" && req.method === "OPTIONS") {
+    res.writeHead(204, {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Max-Age": "86400",
+      "Cache-Control": "no-store"
+    });
+    return res.end();
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/health") {
+    return json(res, 200, {
+      ok: true,
+      status: "ready",
+      service: "wp-resource-search",
+      storage: storageMode,
+      time: new Date().toISOString()
+    }, {
+      ...securityHeaders(),
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, OPTIONS"
+    });
+  }
+
   if (req.method === "GET" && url.pathname === "/api/config") {
     return json(res, 200, await loadConfig(), securityHeaders());
   }
