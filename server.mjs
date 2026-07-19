@@ -459,7 +459,9 @@ function normalizeConfig(input, previous = {}) {
   if (!input || typeof input !== "object") throw new Error("配置内容不正确");
   const settings = {};
   for (const [key, value] of Object.entries(input.settings || {})) {
-    settings[cleanText(key, 80)] = cleanText(value, 500);
+    const settingKey = cleanText(key, 80);
+    const maxLength = settingKey === "qrPromoImage" ? 3 * 1024 * 1024 : 500;
+    settings[settingKey] = cleanText(value, maxLength);
   }
 
   const theme = {
@@ -760,6 +762,7 @@ async function serveStatic(req, res, url) {
       const noticeScript = '<script src="/notice-config.js?v=20260719-5"></script>';
       const allLinksScript = '<script src="/all-links-modal.js?v=20260719-1"></script>';
       const disclaimerScript = '<script src="/disclaimer-config.js?v=20260719-1"></script>';
+      const qrPromoScript = '<script src="/qr-promo-config.js?v=20260719-1"></script>';
       const scripts = [
         !html.includes("/notice-config.js") ? noticeScript : "",
         ["/index.html", "/search.html"].includes(pathname) && !html.includes("/all-links-modal.js")
@@ -767,6 +770,9 @@ async function serveStatic(req, res, url) {
           : "",
         ["/index.html", "/search.html", "/admin.html"].includes(pathname) && !html.includes("/disclaimer-config.js")
           ? disclaimerScript
+          : "",
+        ["/index.html", "/search.html", "/admin.html"].includes(pathname) && !html.includes("/qr-promo-config.js")
+          ? qrPromoScript
           : ""
       ].filter(Boolean).join("\n");
       if (scripts) {
