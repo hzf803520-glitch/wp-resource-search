@@ -1,30 +1,22 @@
 (() => {
   "use strict";
 
-  const STYLE_ID = "resourceYearConfigStyles";
-  const ADMIN_SECTION_ID = "resourceYearConfigSection";
+  const STYLE_ID = "resourceYearInlineStyles";
+  const OLD_SECTION_ID = "resourceYearConfigSection";
   const YEAR_MIN = 1900;
   const YEAR_MAX = 2100;
 
-  const nativeFetch = window.fetch.bind(window);
+  const wrappedFetch = window.fetch.bind(window);
+
   let currentConfig = null;
   let yearValues = new Map();
-  let yearDirty = false;
   let yearMode = false;
+  let yearDirty = false;
+  let renderTimer = null;
   let sortTimer = null;
-  let adminRenderTimer = null;
 
   function normalize(value) {
     return String(value ?? "").replace(/\s+/g, " ").trim();
-  }
-
-  function escapeHtml(value) {
-    return String(value ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
   }
 
   function requestPath(input) {
@@ -45,19 +37,21 @@
     return year >= YEAR_MIN && year <= YEAR_MAX ? year : 0;
   }
 
-  function resourceList(config) {
+  function resources(config) {
     return Array.isArray(config?.resources) ? config.resources : [];
   }
 
-  function syncYearMap(config, preserveDirty = false) {
-    if (!preserveDirty) yearValues = new Map();
+  function syncYearValues(config, preserveDirty = false) {
+    const next = preserveDirty ? new Map(yearValues) : new Map();
 
-    for (const resource of resourceList(config)) {
-      const id = String(resource.id);
-      if (!preserveDirty || !yearValues.has(id)) {
-        yearValues.set(id, validYear(resource.year));
+    resources(config).forEach((resource) => {
+      const key = String(resource.id);
+      if (!preserveDirty || !next.has(key)) {
+        next.set(key, validYear(resource.year));
       }
-    }
+    });
+
+    yearValues = next;
   }
 
   function addStyles() {
@@ -66,128 +60,80 @@
     const style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = `
-      #${ADMIN_SECTION_ID} {
-        margin: 18px 0;
-      }
-
-      #${ADMIN_SECTION_ID} .year-config-toolbar {
-        display: flex;
-        align-items: center;
+      .resource-rating-year-row {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) 155px;
+        align-items: stretch;
         gap: 10px;
-        margin: 14px 0 12px;
-      }
-
-      #${ADMIN_SECTION_ID} .year-config-search {
-        display: flex;
-        flex: 1;
-        align-items: center;
-        gap: 8px;
-        min-height: 42px;
-        border: 1px solid rgba(120, 132, 148, .18);
-        border-radius: 12px;
-        padding: 0 12px;
-        background: rgba(247, 249, 251, .95);
-      }
-
-      #${ADMIN_SECTION_ID} .year-config-search input {
         width: 100%;
-        border: 0;
-        outline: 0;
-        background: transparent;
       }
 
-      #${ADMIN_SECTION_ID} .year-config-count {
-        flex: none;
-        color: #8a94a2;
-        font-size: 12px;
-      }
-
-      #${ADMIN_SECTION_ID} .year-config-list {
-        display: grid;
-        max-height: 440px;
-        gap: 9px;
-        overflow: auto;
-        padding-right: 3px;
-      }
-
-      #${ADMIN_SECTION_ID} .year-config-row {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) 118px;
-        align-items: center;
-        gap: 12px;
-        min-height: 60px;
-        border: 1px solid rgba(120, 132, 148, .14);
-        border-radius: 13px;
-        padding: 10px 12px;
-        background: rgba(248, 250, 251, .92);
-      }
-
-      #${ADMIN_SECTION_ID} .year-resource-copy {
+      .resource-rating-year-row > input {
         min-width: 0;
+        width: 100% !important;
       }
 
-      #${ADMIN_SECTION_ID} .year-resource-copy strong,
-      #${ADMIN_SECTION_ID} .year-resource-copy small {
-        display: block;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      #${ADMIN_SECTION_ID} .year-resource-copy strong {
-        color: #25303d;
-        font-size: 14px;
-      }
-
-      #${ADMIN_SECTION_ID} .year-resource-copy small {
-        margin-top: 4px;
-        color: #8c96a3;
-        font-size: 11px;
-      }
-
-      #${ADMIN_SECTION_ID} .year-input-wrap {
+      .resource-inline-year-shell {
         display: grid;
-        grid-template-columns: 32px minmax(0, 1fr);
+        grid-template-columns: 48px minmax(0, 1fr);
         align-items: center;
+        min-width: 0;
         overflow: hidden;
-        border: 1px solid rgba(120, 132, 148, .18);
-        border-radius: 11px;
+        border: 1px solid rgba(126, 139, 157, .22);
+        border-radius: 10px;
         background: #fff;
       }
 
-      #${ADMIN_SECTION_ID} .year-input-wrap span {
+      .resource-inline-year-prefix {
         display: grid;
-        height: 40px;
+        height: 100%;
+        min-height: 44px;
         place-items: center;
-        background: #f1f5f7;
+        border-right: 1px solid rgba(126, 139, 157, .15);
+        color: #687484;
+        background: #f3f6f8;
         font-size: 13px;
+        font-weight: 700;
       }
 
-      #${ADMIN_SECTION_ID} .year-input-wrap input {
-        width: 100%;
-        height: 40px;
-        border: 0;
+      .resource-inline-year-input {
+        width: 100% !important;
+        min-width: 0;
+        height: 100% !important;
+        min-height: 44px;
+        border: 0 !important;
+        border-radius: 0 !important;
         outline: 0;
-        padding: 0 9px;
-        background: transparent;
+        padding: 0 10px !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        color: #27313d;
         font-size: 14px;
         font-weight: 700;
       }
 
-      #${ADMIN_SECTION_ID} .year-empty {
-        border: 1px dashed rgba(120, 132, 148, .24);
-        border-radius: 13px;
-        padding: 24px 14px;
-        color: #8b95a2;
-        text-align: center;
+      .resource-inline-year-input:invalid {
+        color: #d74d4d;
       }
 
-      @media (max-width: 640px) {
-        #${ADMIN_SECTION_ID} .year-config-row {
-          grid-template-columns: minmax(0, 1fr) 108px;
+      @media (max-width: 760px) {
+        .resource-rating-year-row {
+          grid-template-columns: minmax(0, 1fr) 132px;
+          gap: 8px;
+        }
+
+        .resource-inline-year-shell {
+          grid-template-columns: 42px minmax(0, 1fr);
+        }
+      }
+
+      @media (max-width: 520px) {
+        .resource-rating-year-row {
+          grid-template-columns: 1fr;
         }
       }
     `;
+
     document.head.appendChild(style);
   }
 
@@ -197,7 +143,13 @@
     const status = document.getElementById("saveStatus");
     if (status) status.textContent = "有未保存更改";
 
-    const button = document.getElementById("saveButton");
+    const button =
+      document.getElementById("saveButton")
+      || document.querySelector("[data-save-config]")
+      || [...document.querySelectorAll("button")].find(
+        (item) => /保存并发布|保存/.test(normalize(item.textContent))
+      );
+
     if (button) {
       button.disabled = false;
       button.classList.add("has-changes");
@@ -208,19 +160,214 @@
     yearDirty = false;
 
     const status = document.getElementById("saveStatus");
-    if (status && /未保存|保存中/.test(status.textContent)) {
+    if (status && /未保存|保存中/.test(normalize(status.textContent))) {
       status.textContent = "已同步";
     }
+  }
+
+  function resourceCards() {
+    const editor = document.getElementById("resourcesEditor");
+    if (!editor) return [];
+
+    const directChildren = [...editor.children].filter(
+      (element) => element.nodeType === 1
+    );
+
+    if (directChildren.length) return directChildren;
+
+    return [...editor.querySelectorAll(
+      ".resource-editor-card,.resource-editor-item,.editor-section"
+    )];
+  }
+
+  function labelText(label) {
+    const firstText = [...label.childNodes]
+      .filter((node) => node.nodeType === Node.TEXT_NODE)
+      .map((node) => normalize(node.textContent))
+      .join(" ");
+
+    const caption =
+      label.querySelector(":scope > span")
+      || label.querySelector(":scope > strong")
+      || label.querySelector(":scope > div");
+
+    return normalize(firstText || caption?.textContent || label.textContent);
+  }
+
+  function findRatingLabel(card) {
+    const labels = [...card.querySelectorAll("label")];
+
+    return labels.find((label) => {
+      if (!/评分/.test(labelText(label))) return false;
+
+      const input = label.querySelector(
+        "input[type='number'],input[data-field='rating'],input[name*='rating']"
+      );
+
+      return Boolean(input);
+    }) || null;
+  }
+
+  function titleInput(card) {
+    const labels = [...card.querySelectorAll("label")];
+
+    for (const label of labels) {
+      if (!/列表完整标题|完整标题|资源标题/.test(labelText(label))) continue;
+      const input = label.querySelector("input,textarea");
+      if (input) return input;
+    }
+
+    return card.querySelector(
+      "input[data-field='title'],input[name*='title'],textarea[name*='title']"
+    );
+  }
+
+  function cardResourceId(card, index) {
+    const direct =
+      card.dataset.resourceId
+      || card.querySelector("[data-resource-id]")?.dataset.resourceId
+      || card.querySelector("[data-id]")?.dataset.id;
+
+    if (direct !== undefined && direct !== null && direct !== "") {
+      return String(direct);
+    }
+
+    const title = normalize(titleInput(card)?.value);
+    const matching = resources(currentConfig).find(
+      (resource) => normalize(resource.title) === title
+    );
+
+    if (matching) return String(matching.id);
+
+    const byIndex = resources(currentConfig)[index];
+    return byIndex ? String(byIndex.id) : "";
+  }
+
+  function inputYearValue(resourceId, index) {
+    if (resourceId && yearValues.has(resourceId)) {
+      return validYear(yearValues.get(resourceId));
+    }
+
+    return validYear(resources(currentConfig)[index]?.year);
+  }
+
+  function createYearShell(resourceId, index) {
+    const shell = document.createElement("span");
+    shell.className = "resource-inline-year-shell";
+    shell.dataset.inlineYearShell = "true";
+
+    const prefix = document.createElement("span");
+    prefix.className = "resource-inline-year-prefix";
+    prefix.textContent = "年份";
+
+    const input = document.createElement("input");
+    input.className = "resource-inline-year-input";
+    input.type = "number";
+    input.inputMode = "numeric";
+    input.min = String(YEAR_MIN);
+    input.max = String(YEAR_MAX);
+    input.step = "1";
+    input.placeholder = "如 2026";
+    input.autocomplete = "off";
+    input.dataset.resourceYear = resourceId;
+    input.dataset.resourceIndex = String(index);
+
+    const currentYear = inputYearValue(resourceId, index);
+    input.value = currentYear ? String(currentYear) : "";
+
+    input.addEventListener("input", () => {
+      const raw = normalize(input.value);
+
+      if (!raw) {
+        input.setCustomValidity("");
+        if (resourceId) yearValues.set(resourceId, 0);
+        markDirty();
+        return;
+      }
+
+      const year = validYear(raw);
+
+      if (!year) {
+        input.setCustomValidity(`年份需填写 ${YEAR_MIN}-${YEAR_MAX}`);
+      } else {
+        input.setCustomValidity("");
+        if (resourceId) yearValues.set(resourceId, year);
+      }
+
+      markDirty();
+    });
+
+    shell.append(prefix, input);
+    return shell;
+  }
+
+  function injectInlineYearFields() {
+    if (!location.pathname.startsWith("/admin") || !currentConfig) return;
+
+    addStyles();
+
+    // Remove the previous separate year configuration section.
+    document.getElementById(OLD_SECTION_ID)?.remove();
+
+    resourceCards().forEach((card, index) => {
+      const ratingLabel = findRatingLabel(card);
+      if (!ratingLabel) return;
+
+      if (ratingLabel.querySelector("[data-inline-year-shell]")) return;
+
+      const ratingInput = ratingLabel.querySelector(
+        "input[type='number'],input[data-field='rating'],input[name*='rating']"
+      );
+
+      if (!ratingInput) return;
+
+      const resourceId = cardResourceId(card, index);
+      if (resourceId) card.dataset.yearResourceId = resourceId;
+
+      const row = document.createElement("span");
+      row.className = "resource-rating-year-row";
+      row.dataset.ratingYearRow = "true";
+
+      ratingInput.parentNode.insertBefore(row, ratingInput);
+      row.appendChild(ratingInput);
+      row.appendChild(createYearShell(resourceId, index));
+    });
+  }
+
+  function scheduleInlineRender() {
+    clearTimeout(renderTimer);
+    renderTimer = setTimeout(injectInlineYearFields, 80);
+  }
+
+  function collectYearsFromEditor() {
+    const byIndex = new Map();
+
+    document.querySelectorAll(".resource-inline-year-input").forEach((input) => {
+      const year = validYear(input.value);
+      const resourceId = normalize(input.dataset.resourceYear);
+      const index = Number(input.dataset.resourceIndex);
+
+      if (resourceId) yearValues.set(resourceId, year);
+      if (Number.isInteger(index) && index >= 0) byIndex.set(index, year);
+    });
+
+    return byIndex;
   }
 
   function applyYearsToPayload(payload) {
     if (!payload || !Array.isArray(payload.resources)) return payload;
 
-    payload.resources = payload.resources.map((resource) => {
-      const id = String(resource.id);
+    const byIndex = collectYearsFromEditor();
+
+    payload.resources = payload.resources.map((resource, index) => {
+      const resourceId = String(resource.id ?? "");
+      let year = resourceId && yearValues.has(resourceId)
+        ? validYear(yearValues.get(resourceId))
+        : validYear(byIndex.get(index));
+
       return {
         ...resource,
-        year: validYear(yearValues.get(id))
+        year
       };
     });
 
@@ -240,16 +387,17 @@
     ) {
       try {
         const payload = applyYearsToPayload(JSON.parse(init.body));
+
         nextInit = {
           ...init,
           body: JSON.stringify(payload)
         };
       } catch {
-        // Keep the original request if the body cannot be parsed.
+        // Keep the original request when the body is not JSON.
       }
     }
 
-    const response = await nativeFetch(input, nextInit);
+    const response = await wrappedFetch(input, nextInit);
 
     if (
       response.ok
@@ -258,12 +406,12 @@
     ) {
       response.clone().json().then((config) => {
         currentConfig = config;
-        syncYearMap(config, method === "GET" && yearDirty);
+        syncYearValues(config, method === "GET" && yearDirty);
 
         if (method === "PUT") markSaved();
 
         if (location.pathname.startsWith("/admin")) {
-          scheduleAdminRender();
+          scheduleInlineRender();
         } else if (yearMode) {
           scheduleYearSort();
         }
@@ -273,133 +421,13 @@
     return response;
   };
 
-  function adminSectionMarkup(config) {
-    const rows = resourceList(config).map((resource) => {
-      const id = String(resource.id);
-      const value = validYear(yearValues.get(id));
-
-      return `
-        <label class="year-config-row"
-          data-year-row
-          data-year-search="${escapeHtml(`${resource.title} ${resource.category}`.toLowerCase())}">
-          <span class="year-resource-copy">
-            <strong>${escapeHtml(resource.title || "未命名资源")}</strong>
-            <small>${escapeHtml(resource.category || "未分类")} · 资源ID ${escapeHtml(id)}</small>
-          </span>
-          <span class="year-input-wrap">
-            <span>年</span>
-            <input
-              type="number"
-              inputmode="numeric"
-              min="${YEAR_MIN}"
-              max="${YEAR_MAX}"
-              step="1"
-              placeholder="如 2026"
-              value="${value || ""}"
-              data-resource-year="${escapeHtml(id)}"
-            />
-          </span>
-        </label>
-      `;
-    }).join("");
-
-    return `
-      <div class="section-title">
-        <div>
-          <h3>资源年份配置</h3>
-          <p>填写资源所属年份，例如 2026。前台点击“年份”后会按最新年份优先排列，未填写的排在最后。</p>
-        </div>
-      </div>
-
-      <div class="year-config-toolbar">
-        <label class="year-config-search">
-          <span>⌕</span>
-          <input type="search" placeholder="搜索资源名称或分类" data-year-search-input />
-        </label>
-        <span class="year-config-count" data-year-count>共 ${resourceList(config).length} 条</span>
-      </div>
-
-      <div class="year-config-list" data-year-list>
-        ${rows || '<div class="year-empty">暂无资源，请先新增资源并保存。</div>'}
-      </div>
-    `;
-  }
-
-  function bindAdminSection(section) {
-    section.querySelectorAll("[data-resource-year]").forEach((input) => {
-      input.addEventListener("input", () => {
-        const id = String(input.dataset.resourceYear || "");
-        const raw = normalize(input.value);
-
-        if (!raw) {
-          yearValues.set(id, 0);
-          input.setCustomValidity("");
-          markDirty();
-          return;
-        }
-
-        const year = validYear(raw);
-        if (!year) {
-          input.setCustomValidity(`年份需填写 ${YEAR_MIN}-${YEAR_MAX}`);
-        } else {
-          input.setCustomValidity("");
-          yearValues.set(id, year);
-        }
-
-        markDirty();
-      });
-    });
-
-    const search = section.querySelector("[data-year-search-input]");
-    const count = section.querySelector("[data-year-count]");
-
-    search?.addEventListener("input", () => {
-      const keyword = normalize(search.value).toLowerCase();
-      let visible = 0;
-
-      section.querySelectorAll("[data-year-row]").forEach((row) => {
-        const matched = !keyword || String(row.dataset.yearSearch || "").includes(keyword);
-        row.hidden = !matched;
-        if (matched) visible += 1;
-      });
-
-      if (count) count.textContent = `显示 ${visible} 条`;
-    });
-  }
-
-  function renderAdminSection() {
-    if (!location.pathname.startsWith("/admin") || !currentConfig) return;
-
-    const host = document.getElementById("resourcePanel");
-    const resourcesEditor = document.getElementById("resourcesEditor");
-    if (!host || !resourcesEditor) return;
-
-    addStyles();
-
-    let section = document.getElementById(ADMIN_SECTION_ID);
-    if (!section) {
-      section = document.createElement("div");
-      section.id = ADMIN_SECTION_ID;
-      section.className = "editor-section";
-      resourcesEditor.insertAdjacentElement("beforebegin", section);
-    }
-
-    section.innerHTML = adminSectionMarkup(currentConfig);
-    bindAdminSection(section);
-  }
-
-  function scheduleAdminRender() {
-    clearTimeout(adminRenderTimer);
-    adminRenderTimer = setTimeout(renderAdminSection, 100);
-  }
-
   function closestResourceCard(node) {
     return node.closest(
       "button,article,li,.resource-card,.resource-item,.result-card,.search-result-item"
     ) || node;
   }
 
-  function collectCards() {
+  function collectPublicCards() {
     const unique = new Map();
 
     document.querySelectorAll("[data-resource-id]").forEach((node) => {
@@ -409,9 +437,7 @@
       const card = closestResourceCard(node);
       if (!card?.parentElement) return;
 
-      if (!unique.has(card)) {
-        unique.set(card, { card, id });
-      }
+      if (!unique.has(card)) unique.set(card, { card, id });
     });
 
     return [...unique.values()];
@@ -424,15 +450,18 @@
       card.querySelector("[class*='number']")
     ].filter(Boolean);
 
-    const target = candidates.find((element) => /^\d+$/.test(normalize(element.textContent)));
+    const target = candidates.find(
+      (element) => /^\d+$/.test(normalize(element.textContent))
+    );
+
     if (target) target.textContent = String(rank);
   }
 
   function applyYearSort() {
     if (!yearMode || !currentConfig) return;
 
-    const resources = new Map(
-      resourceList(currentConfig).map((resource, index) => [
+    const metadata = new Map(
+      resources(currentConfig).map((resource, index) => [
         String(resource.id),
         {
           year: validYear(resource.year),
@@ -445,18 +474,22 @@
 
     const groups = new Map();
 
-    for (const entry of collectCards()) {
+    collectPublicCards().forEach((entry) => {
       const parent = entry.card.parentElement;
       if (!groups.has(parent)) groups.set(parent, []);
       groups.get(parent).push(entry);
-    }
+    });
 
-    for (const [parent, entries] of groups) {
-      if (entries.length < 2) continue;
+    groups.forEach((entries, parent) => {
+      if (entries.length < 2) return;
 
       entries.sort((left, right) => {
-        const a = resources.get(left.id) || { year: 0, updatedAt: 0, id: 0, index: 0 };
-        const b = resources.get(right.id) || { year: 0, updatedAt: 0, id: 0, index: 0 };
+        const a = metadata.get(left.id) || {
+          year: 0, updatedAt: 0, id: 0, index: 0
+        };
+        const b = metadata.get(right.id) || {
+          year: 0, updatedAt: 0, id: 0, index: 0
+        };
 
         if (b.year !== a.year) return b.year - a.year;
         if (b.updatedAt !== a.updatedAt) return b.updatedAt - a.updatedAt;
@@ -468,36 +501,27 @@
         parent.appendChild(entry.card);
         updateRank(entry.card, index + 1);
       });
-    }
+    });
   }
 
   function scheduleYearSort() {
     clearTimeout(sortTimer);
-    sortTimer = setTimeout(applyYearSort, 80);
+    sortTimer = setTimeout(applyYearSort, 90);
   }
 
-  function sortButtonText(target) {
-    const button = target.closest("button,[role='button'],a");
-    return {
-      button,
-      text: normalize(button?.textContent)
-    };
-  }
-
-  function installPublicYearSort() {
+  function installPublicSort() {
     document.addEventListener("click", (event) => {
-      const { button, text } = sortButtonText(event.target);
+      const button = event.target.closest("button,[role='button'],a");
       if (!button) return;
+
+      const text = normalize(button.textContent);
 
       if (text === "年份") {
         yearMode = true;
         scheduleYearSort();
-        setTimeout(scheduleYearSort, 180);
-        setTimeout(scheduleYearSort, 450);
-        return;
-      }
-
-      if (["默认", "最热", "评分"].includes(text)) {
+        setTimeout(scheduleYearSort, 220);
+        setTimeout(scheduleYearSort, 520);
+      } else if (["默认", "最热", "评分"].includes(text)) {
         yearMode = false;
       }
     });
@@ -518,7 +542,7 @@
       : "/api/config";
 
     try {
-      const response = await nativeFetch(path, {
+      const response = await wrappedFetch(path, {
         credentials: "same-origin",
         cache: "no-store"
       });
@@ -526,13 +550,13 @@
       if (!response.ok) return;
 
       currentConfig = await response.json();
-      syncYearMap(currentConfig);
+      syncYearValues(currentConfig);
 
       if (location.pathname.startsWith("/admin")) {
-        scheduleAdminRender();
+        scheduleInlineRender();
       }
     } catch {
-      // The main page remains usable if this optional module cannot load.
+      // Keep the main system usable if this optional module cannot load.
     }
   }
 
@@ -545,10 +569,28 @@
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => {
       loadConfig();
-      if (!location.pathname.startsWith("/admin")) installPublicYearSort();
+
+      if (location.pathname.startsWith("/admin")) {
+        const observer = new MutationObserver(scheduleInlineRender);
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true
+        });
+      } else {
+        installPublicSort();
+      }
     }, { once: true });
   } else {
     loadConfig();
-    if (!location.pathname.startsWith("/admin")) installPublicYearSort();
+
+    if (location.pathname.startsWith("/admin")) {
+      const observer = new MutationObserver(scheduleInlineRender);
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
+    } else {
+      installPublicSort();
+    }
   }
 })();
