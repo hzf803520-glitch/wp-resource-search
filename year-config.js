@@ -37,6 +37,19 @@
     return year >= YEAR_MIN && year <= YEAR_MAX ? year : 0;
   }
 
+  function unwrapConfig(payload) {
+    if (
+      payload
+      && typeof payload === "object"
+      && payload.config
+      && typeof payload.config === "object"
+    ) {
+      return payload.config;
+    }
+
+    return payload;
+  }
+
   function resources(config) {
     return Array.isArray(config?.resources) ? config.resources : [];
   }
@@ -313,16 +326,35 @@
       const ratingLabel = findRatingLabel(card);
       if (!ratingLabel) return;
 
-      if (ratingLabel.querySelector("[data-inline-year-shell]")) return;
+      const resourceId = cardResourceId(card, index);
+      if (resourceId) card.dataset.yearResourceId = resourceId;
+
+      const existingShell = ratingLabel.querySelector("[data-inline-year-shell]");
+      if (existingShell) {
+        const existingInput = existingShell.querySelector(".resource-inline-year-input");
+
+        if (existingInput) {
+          existingInput.dataset.resourceYear = resourceId;
+          existingInput.dataset.resourceIndex = String(index);
+
+          const savedYear = inputYearValue(resourceId, index);
+
+          if (
+            document.activeElement !== existingInput
+            && !yearDirty
+          ) {
+            existingInput.value = savedYear ? String(savedYear) : "";
+          }
+        }
+
+        return;
+      }
 
       const ratingInput = ratingLabel.querySelector(
         "input[type='number'],input[data-field='rating'],input[name*='rating']"
       );
 
       if (!ratingInput) return;
-
-      const resourceId = cardResourceId(card, index);
-      if (resourceId) card.dataset.yearResourceId = resourceId;
 
       const row = document.createElement("span");
       row.className = "resource-rating-year-row";
@@ -404,11 +436,22 @@
       && ["/api/config", "/api/admin/config"].includes(path)
       && ["GET", "PUT"].includes(method)
     ) {
-      response.clone().json().then((config) => {
-        currentConfig = config;
-        syncYearValues(config, method === "GET" && yearDirty);
+      response.clone().json().then((payload) => {
+        const savedConfig = unwrapConfig(payload);
 
-        if (method === "PUT") markSaved();
+        if (!savedConfig || !Array.isArray(savedConfig.resources)) {
+          return;
+        }
+
+        currentConfig = savedConfig;
+        syncYearValues(
+          savedConfig,
+          method === "GET" && yearDirty
+        );
+
+        if (method === "PUT") {
+          markSaved();
+        }
 
         if (location.pathname.startsWith("/admin")) {
           scheduleInlineRender();
@@ -549,7 +592,13 @@
 
       if (!response.ok) return;
 
-      currentConfig = await response.json();
+      const payload = await response.json();
+      currentConfig = unwrapConfig(payload);
+
+      if (!currentConfig || !Array.isArray(currentConfig.resources)) {
+        return;
+      }
+
       syncYearValues(currentConfig);
 
       if (location.pathname.startsWith("/admin")) {
