@@ -195,10 +195,11 @@
     style.id = STYLE_ID;
     style.textContent = `
       .recent-updates-section {
-        width: calc(100% - 24px);
-        max-width: 520px;
+        display: block;
+        width: 100%;
+        max-width: none;
         box-sizing: border-box;
-        margin: 12px auto;
+        margin: 12px 0;
         padding: 15px 14px;
         border-radius: 14px;
         background: #fff;
@@ -337,8 +338,9 @@
       }
       @media (max-width: 430px) {
         .recent-updates-section {
-          width: calc(100% - 18px);
-          padding: 14px 10px;
+          width: 100%;
+          margin: 12px 0;
+          padding: 14px 14px;
         }
       }
     `;
