@@ -18,11 +18,10 @@
   const SECTION_ID = "recentUpdatesSection";
   const ADMIN_SECTION_ID = "recentUpdatesSettingsSection";
   const STYLE_ID = "recentUpdatesStyles";
-  const PAGE_ID = "recentUpdatesDedicatedPage";
-  const PAGE_MODE = "recent";
+  const PAGE_ID = "resourceDedicatedListPage";
+  const PAGE_MODES = new Set(["recent", "hot", "popular", "rating", "category", "source"]);
 
   let currentConfig = null;
-  let expanded = false;
   let adminLoading = false;
   let publicTimer = null;
 
@@ -102,6 +101,155 @@
         return right.index - left.index;
       })
       .map(({ resource }) => resource);
+  }
+
+
+  function visibleResources(config) {
+    return (Array.isArray(config?.resources) ? config.resources : [])
+      .filter((resource) => resource?.visible !== false);
+  }
+
+  function sourceLabelMap(config) {
+    return new Map(
+      (Array.isArray(config?.sources) ? config.sources : [])
+        .map((source) => [String(source.id), normalize(source.label)])
+    );
+  }
+
+  function resourceMatchesSource(resource, sourceName, config) {
+    const labels = sourceLabelMap(config);
+    const expected = normalize(sourceName);
+
+    return Object.entries(resource?.links || {}).some(([sourceId, link]) => {
+      if (!normalize(link)) return false;
+      return labels.get(String(sourceId)) === expected;
+    });
+  }
+
+  function dedicatedContext() {
+    const params = new URLSearchParams(window.location.search);
+    const view = normalize(params.get("view")).toLowerCase();
+    const value = normalize(
+      params.get("value")
+      || params.get("category")
+      || params.get("source")
+    );
+
+    return {
+      view: PAGE_MODES.has(view) ? view : "",
+      value
+    };
+  }
+
+  function isDedicatedListPage() {
+    return Boolean(dedicatedContext().view);
+  }
+
+  function pageDefinition(context, config) {
+    const values = valuesFromConfig(config);
+    const settings = config?.settings || {};
+
+    switch (context.view) {
+      case "hot":
+        return {
+          title: normalize(settings.hotTitle) || "热门资源",
+          subtitle: "按前台热门资源顺序显示",
+          summary: "热门资源",
+          searchPlaceholder: "搜索热门资源"
+        };
+      case "popular":
+        return {
+          title: normalize(settings.popularTitle) || "人气榜",
+          subtitle: "按资源热度从高到低排列",
+          summary: "人气资源",
+          searchPlaceholder: "搜索人气资源"
+        };
+      case "rating":
+        return {
+          title: normalize(settings.ratingTitle) || "好评榜",
+          subtitle: "按资源评分从高到低排列",
+          summary: "高评分资源",
+          searchPlaceholder: "搜索高评分资源"
+        };
+      case "category":
+        return {
+          title: context.value || "分类资源",
+          subtitle: "仅显示当前分类中的资源",
+          summary: `${context.value || "分类"}资源`,
+          searchPlaceholder: `搜索${context.value || "分类"}资源`
+        };
+      case "source":
+        return {
+          title: context.value || "网盘资源",
+          subtitle: "仅显示当前网盘中可用的资源",
+          summary: `${context.value || "网盘"}资源`,
+          searchPlaceholder: `搜索${context.value || "网盘"}资源`
+        };
+      case "recent":
+      default:
+        return {
+          title: values.title,
+          subtitle: "按最后保存时间倒序排列",
+          summary: "最近更新资源",
+          searchPlaceholder: "搜索最近更新资源"
+        };
+    }
+  }
+
+  function resourcesForContext(context, config) {
+    const resources = visibleResources(config);
+
+    switch (context.view) {
+      case "hot":
+        // Preserve the manual resource order used by the homepage.
+        return resources;
+      case "popular":
+        return [...resources].sort((left, right) => {
+          const heatDifference = (Number(right.heat) || 0) - (Number(left.heat) || 0);
+          if (heatDifference !== 0) return heatDifference;
+          return (Number(right.id) || 0) - (Number(left.id) || 0);
+        });
+      case "rating":
+        return [...resources].sort((left, right) => {
+          const ratingDifference = (Number(right.rating) || 0) - (Number(left.rating) || 0);
+          if (ratingDifference !== 0) return ratingDifference;
+          return (Number(right.heat) || 0) - (Number(left.heat) || 0);
+        });
+      case "category":
+        return resources.filter((resource) => (
+          normalize(resource.category) === normalize(context.value)
+        ));
+      case "source":
+        return resources.filter((resource) => (
+          resourceMatchesSource(resource, context.value, config)
+        ));
+      case "recent":
+      default:
+        return recentResources(config);
+    }
+  }
+
+  function metricMarkup(resource, context, config) {
+    if (context.view === "popular") {
+      return `<span class="recent-update-date">🔥 ${Math.max(0, Number(resource.heat) || 0)}</span>`;
+    }
+
+    if (context.view === "rating") {
+      const rating = Math.max(0, Math.min(10, Number(resource.rating) || 0));
+      return `<span class="recent-update-date">★ ${rating.toFixed(1)}</span>`;
+    }
+
+    if (context.view === "recent") {
+      const date = formatDate(timestamp(resource, config));
+      return date
+        ? `<span class="recent-update-date">${escapeHtml(date)}</span>`
+        : "";
+    }
+
+    const updateText = normalize(resource.update);
+    return updateText
+      ? `<span class="recent-update-date">${escapeHtml(updateText)}</span>`
+      : "";
   }
 
   // ---------------- Backend configuration ----------------
@@ -609,7 +757,7 @@
     section.querySelector("[data-recent-updates-more]")?.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      window.location.href = `/search.html?view=${PAGE_MODE}`;
+      window.location.href = "/search.html?view=recent";
     });
 
     const placement = findPlacementTarget(config);
@@ -621,13 +769,25 @@
   }
 
 
-  function isDedicatedRecentPage() {
-    const params = new URLSearchParams(window.location.search);
-    return params.get("view") === PAGE_MODE;
-  }
+  function dedicatedItemMarkup(resource, index, config, context) {
+    const labels = sourceLabels(resource, config);
 
-  function dedicatedItemMarkup(resource, index, config) {
-    return itemMarkup(resource, index, config);
+    return `
+      <button class="recent-update-item" type="button"
+        data-resource-id="${escapeHtml(resource.id)}">
+        <span class="recent-update-rank">${index + 1}</span>
+        <span class="recent-update-copy">
+          <strong>${escapeHtml(resource.title || resource.artTitle || "未命名资源")}</strong>
+          <span class="recent-update-meta">
+            ${labels.map((label) => (
+              `<span class="recent-update-source">${escapeHtml(label)}</span>`
+            )).join("")}
+            ${metricMarkup(resource, context, config)}
+          </span>
+        </span>
+        <span class="recent-update-arrow">›</span>
+      </button>
+    `;
   }
 
   function closeDedicatedPage() {
@@ -641,8 +801,11 @@
     }
   }
 
-  function renderDedicatedRecentPage(config, keyword = "") {
+  function renderDedicatedListPage(config, keyword = "") {
     ensureStyles();
+
+    const context = dedicatedContext();
+    if (!context.view) return;
 
     let page = document.getElementById(PAGE_ID);
     if (!page) {
@@ -654,11 +817,12 @@
 
     document.body.classList.add("recent-updates-page-open");
 
-    const values = valuesFromConfig(config);
+    const definition = pageDefinition(context, config);
     const query = normalize(keyword).toLowerCase();
-    const allRecent = recentResources(config);
+    const allResources = resourcesForContext(context, config);
+
     const filtered = query
-      ? allRecent.filter((resource) => {
+      ? allResources.filter((resource) => {
           const searchable = [
             resource.title,
             resource.artTitle,
@@ -666,9 +830,10 @@
             resource.update,
             ...sourceLabels(resource, config)
           ].join(" ").toLowerCase();
+
           return searchable.includes(query);
         })
-      : allRecent;
+      : allResources;
 
     page.innerHTML = `
       <div class="recent-updates-page-shell">
@@ -676,8 +841,8 @@
           <button class="recent-updates-page-back" type="button"
             data-recent-page-back aria-label="返回">‹</button>
           <div class="recent-updates-page-title">
-            <strong>${escapeHtml(values.title)}</strong>
-            <small>按最后保存时间倒序排列</small>
+            <strong>${escapeHtml(definition.title)}</strong>
+            <small>${escapeHtml(definition.subtitle)}</small>
           </div>
           <span></span>
         </header>
@@ -686,12 +851,12 @@
           <span>⌕</span>
           <input type="search" data-recent-page-search
             value="${escapeHtml(keyword)}"
-            placeholder="搜索最近更新资源" />
+            placeholder="${escapeHtml(definition.searchPlaceholder)}" />
         </label>
 
         <div class="recent-updates-page-card">
           <div class="recent-updates-page-summary">
-            <strong>最近更新资源</strong>
+            <strong>${escapeHtml(definition.summary)}</strong>
             <span>共 ${filtered.length} 条</span>
           </div>
 
@@ -699,11 +864,11 @@
             filtered.length
               ? `<div class="recent-updates-list">
                   ${filtered.map((resource, index) => (
-                    dedicatedItemMarkup(resource, index, config)
+                    dedicatedItemMarkup(resource, index, config, context)
                   )).join("")}
                 </div>`
               : `<div class="recent-updates-page-empty">
-                  没有找到符合条件的最近更新资源
+                  当前页面没有符合条件的资源
                 </div>`
           }
         </div>
@@ -718,11 +883,133 @@
     const searchInput = page.querySelector("[data-recent-page-search]");
     searchInput?.addEventListener("input", () => {
       const cursorPosition = searchInput.selectionStart || 0;
-      renderDedicatedRecentPage(config, searchInput.value);
+      renderDedicatedListPage(config, searchInput.value);
+
       const nextInput = document.querySelector("[data-recent-page-search]");
       nextInput?.focus();
       nextInput?.setSelectionRange(cursorPosition, cursorPosition);
     });
+  }
+
+  function normalizedSectionText(trigger) {
+    const knownLabels = [
+      "热门资源",
+      "人气榜",
+      "好评榜",
+      "评分榜",
+      "最近更新"
+    ];
+
+    let current = trigger;
+    for (let depth = 0; current && depth < 7; depth += 1, current = current.parentElement) {
+      const headings = current.querySelectorAll?.(
+        "h1,h2,h3,h4,.section-title,.panel-title,.card-title,[data-section-title]"
+      );
+
+      for (const heading of headings || []) {
+        const textValue = normalize(heading.textContent);
+        const matched = knownLabels.find((label) => textValue.includes(label));
+        if (matched) return matched;
+      }
+    }
+
+    return normalize(trigger.textContent);
+  }
+
+  function routeFromTrigger(trigger, config) {
+    const triggerText = normalize(trigger.textContent);
+    const sectionText = normalizedSectionText(trigger);
+    const combined = `${sectionText} ${triggerText}`;
+
+    if (/最近更新/.test(combined)) {
+      return { view: "recent", value: "" };
+    }
+    if (/热门资源/.test(combined)) {
+      return { view: "hot", value: "" };
+    }
+    if (/人气榜/.test(combined)) {
+      return { view: "popular", value: "" };
+    }
+    if (/好评榜|评分榜/.test(combined)) {
+      return { view: "rating", value: "" };
+    }
+
+    const categories = Array.isArray(config?.categoryOrder)
+      ? config.categoryOrder.map(normalize).filter(Boolean)
+      : [];
+
+    const directCategory = categories.find((category) => triggerText === category);
+    if (directCategory) {
+      return { view: "category", value: directCategory };
+    }
+
+    const sources = Array.isArray(config?.sources)
+      ? config.sources.map((source) => normalize(source.label)).filter(Boolean)
+      : [];
+
+    const directSource = sources.find((source) => triggerText === source);
+    if (directSource && !/全部网盘/.test(directSource)) {
+      return { view: "source", value: directSource };
+    }
+
+    const href = trigger.getAttribute?.("href");
+    if (href) {
+      try {
+        const url = new URL(href, window.location.origin);
+        const params = url.searchParams;
+
+        const category = normalize(params.get("category"));
+        if (category) return { view: "category", value: category };
+
+        const source = normalize(params.get("source"));
+        if (source) return { view: "source", value: source };
+
+        const sort = normalize(params.get("sort")).toLowerCase();
+        if (["hot", "popular"].includes(sort)) return { view: "popular", value: "" };
+        if (["rating", "score"].includes(sort)) return { view: "rating", value: "" };
+        if (["recent", "new", "latest"].includes(sort)) return { view: "recent", value: "" };
+      } catch {
+        // Ignore malformed links.
+      }
+    }
+
+    return null;
+  }
+
+  function dedicatedUrl(route) {
+    const params = new URLSearchParams({ view: route.view });
+    if (route.value) params.set("value", route.value);
+    return `/search.html?${params.toString()}`;
+  }
+
+  function installUnifiedNavigation() {
+    document.addEventListener("click", (event) => {
+      if (!currentConfig || isDedicatedListPage()) return;
+
+      const trigger = event.target.closest("a,button");
+      if (!trigger || trigger.closest(`#${SECTION_ID}`)?.querySelector("[data-resource-id]") === trigger) {
+        return;
+      }
+
+      if (trigger.closest("[data-resource-id]")) return;
+
+      const href = trigger.getAttribute?.("href") || "";
+      const textValue = normalize(trigger.textContent);
+      const isNavigationTrigger = (
+        /查看更多|查看全部/.test(textValue)
+        || /search\.html/.test(href)
+      );
+
+      if (!isNavigationTrigger) return;
+
+      const route = routeFromTrigger(trigger, currentConfig);
+      if (!route) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      window.location.href = dedicatedUrl(route);
+    }, true);
   }
 
   async function refreshPublic() {
@@ -730,8 +1017,8 @@
       const nextConfig = await fetchConfig(false);
       currentConfig = nextConfig;
 
-      if (isDedicatedRecentPage()) {
-        renderDedicatedRecentPage(currentConfig);
+      if (isDedicatedListPage()) {
+        renderDedicatedListPage(currentConfig);
       } else {
         renderPublic(currentConfig);
       }
@@ -743,7 +1030,9 @@
   function startPublic() {
     refreshPublic();
 
-    if (!isDedicatedRecentPage()) {
+    installUnifiedNavigation();
+
+    if (!isDedicatedListPage()) {
       const observer = new MutationObserver(() => {
         if (currentConfig && !document.getElementById(SECTION_ID)) {
           clearTimeout(publicTimer);
