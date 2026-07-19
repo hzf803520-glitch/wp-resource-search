@@ -624,6 +624,20 @@ async function handleApi(req, res, url) {
     });
   }
 
+  if (req.method === "GET" && url.pathname === "/api/wake-ready.js") {
+    const script = [
+      "window.__WP_BACKEND_READY__ = true;",
+      "window.dispatchEvent(new Event('wp-backend-ready'));"
+    ].join("");
+    res.writeHead(200, {
+      "Content-Type": "application/javascript; charset=utf-8",
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+      "Access-Control-Allow-Origin": "*",
+      "X-Content-Type-Options": "nosniff"
+    });
+    return res.end(script);
+  }
+
   if (req.method === "GET" && url.pathname === "/api/config") {
     return json(res, 200, await loadConfig(), securityHeaders());
   }
