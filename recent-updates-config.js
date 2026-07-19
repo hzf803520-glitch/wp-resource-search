@@ -718,8 +718,36 @@
     `;
   }
 
+  function isHomepageOnly() {
+    const path = window.location.pathname;
+    const params = new URLSearchParams(window.location.search);
+
+    const homePath = (
+      path === "/"
+      || path === "/index.html"
+      || path.endsWith("/index.html")
+    );
+
+    const hasFilterOrDedicatedView = [
+      "view",
+      "category",
+      "source",
+      "sort",
+      "keyword",
+      "q",
+      "search",
+      "type",
+      "filter"
+    ].some((key) => normalize(params.get(key)));
+
+    return homePath && !hasFilterOrDedicatedView;
+  }
+
   function renderPublic(config) {
     document.getElementById(SECTION_ID)?.remove();
+
+    // 最近更新只允许显示在首页，所有搜索、分类、网盘和榜单页面均隐藏。
+    if (!isHomepageOnly()) return;
 
     const values = valuesFromConfig(config);
     if (values.enabled !== "show") return;
@@ -1030,11 +1058,20 @@
   function startPublic() {
     refreshPublic();
 
+    window.addEventListener("popstate", () => {
+      document.getElementById(SECTION_ID)?.remove();
+      refreshPublic();
+    });
+
     installUnifiedNavigation();
 
     if (!isDedicatedListPage()) {
       const observer = new MutationObserver(() => {
-        if (currentConfig && !document.getElementById(SECTION_ID)) {
+        if (
+          currentConfig
+          && isHomepageOnly()
+          && !document.getElementById(SECTION_ID)
+        ) {
           clearTimeout(publicTimer);
           publicTimer = setTimeout(() => renderPublic(currentConfig), 100);
         }
