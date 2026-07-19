@@ -130,14 +130,15 @@
     Object.assign(notice.style, {
       margin: "12px 0 0",
       padding: "10px 12px",
-      border: "1px solid #ff4d4f",
-      borderRadius: "4px",
-      color: "#ff3b3b",
-      background: "#fff",
-      fontSize: "13px",
-      fontWeight: "700",
-      lineHeight: "1.5",
-      textAlign: "center"
+      border: "0",
+      borderRadius: "10px",
+      color: "#8a5a00",
+      background: "#fff8e8",
+      fontSize: "12px",
+      fontWeight: "600",
+      lineHeight: "1.55",
+      textAlign: "center",
+      boxShadow: "none"
     });
 
     const closeButton = [...dialog.querySelectorAll("button")]
