@@ -128,36 +128,11 @@
 
   function dedicatedContext() {
     const params = new URLSearchParams(window.location.search);
-    let view = normalize(params.get("view")).toLowerCase();
-    let value = normalize(params.get("value"));
-
-    const category = normalize(params.get("category"));
-    const source = normalize(params.get("source"));
-    const sort = normalize(params.get("sort")).toLowerCase();
-
-    if (!PAGE_MODES.has(view)) {
-      if (category && !/全部分类/.test(category)) {
-        view = "category";
-        value = category;
-      } else if (source && !/全部网盘/.test(source)) {
-        view = "source";
-        value = source;
-      } else if (["rating", "score"].includes(sort)) {
-        view = "rating";
-      } else if (["hot", "popular", "heat"].includes(sort)) {
-        view = "popular";
-      } else if (["recent", "new", "latest", "updated"].includes(sort)) {
-        view = "recent";
-      } else {
-        view = "";
-      }
-    }
-
-    if (!value) value = category || source;
+    const view = normalize(params.get("view")).toLowerCase();
 
     return {
-      view: PAGE_MODES.has(view) ? view : "",
-      value
+      view: view === "recent" ? "recent" : "",
+      value: ""
     };
   }
 
@@ -511,20 +486,6 @@
         font-weight: 700;
         line-height: 1.2;
       }
-      .configured-rating-value {
-        display: inline-flex;
-        flex: none;
-        align-items: center;
-        min-height: 17px;
-        margin: 0 3px;
-        padding: 0;
-        color: #f08a00;
-        background: transparent;
-        font-size: 10px;
-        font-weight: 700;
-        line-height: 1.2;
-        white-space: nowrap;
-      }
       .recent-update-arrow {
         color: #aab0b8;
         font-size: 22px;
@@ -831,7 +792,7 @@
     section.querySelector("[data-recent-updates-more]")?.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      window.location.href = "/search.html?view=recent&sort=updated";
+      window.location.href = "/search.html?view=recent";
     });
 
     const placement = findPlacementTarget(config);
@@ -1099,32 +1060,8 @@
   }
 
   function installUnifiedNavigation() {
-    document.addEventListener("click", (event) => {
-      if (!currentConfig || isDedicatedListPage()) return;
-
-      const trigger = event.target.closest("a,button,[role='button']");
-      if (!trigger) return;
-      if (trigger.closest("[data-resource-id]")) return;
-      if (trigger.closest(`#${PAGE_ID}`)) return;
-
-      const href = trigger.getAttribute?.("href") || "";
-      const textValue = normalize(trigger.textContent);
-
-      const route = directFilterRoute(trigger, currentConfig)
-        || (
-          /查看更多|查看全部/.test(textValue)
-          || /search\.html/.test(href)
-            ? routeFromTrigger(trigger, currentConfig)
-            : null
-        );
-
-      if (!route) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      window.location.href = dedicatedUrl(route);
-    }, true);
+    // 保留原系统的默认、最热、评分、年份、分类和网盘切换逻辑。
+    // 这里只处理首页“最近更新”的查看更多按钮，该按钮已有独立事件。
   }
 
 
@@ -1135,85 +1072,82 @@
     );
   }
 
-  function findMetricContainer(card) {
-    const known = card.querySelector(
-      ".recent-update-meta,[class*='resource-meta'],[class*='item-meta'],[class*='card-meta']"
-    );
-    if (known) return known;
+  function smallestHeatElement(card) {
+    const candidates = [...card.querySelectorAll("span,small,em,strong,p,div")]
+      .filter((element) => normalize(element.textContent).includes("🔥"))
+      .filter((element) => ![...element.children].some(
+        (child) => normalize(child.textContent).includes("🔥")
+      ))
+      .sort((left, right) => (
+        normalize(left.textContent).length - normalize(right.textContent).length
+      ));
 
-    const heatLeaf = [...card.querySelectorAll("span,small,em,strong,div")]
-      .find((element) => {
-        const value = normalize(element.textContent);
-        return /^🔥\s*\d+/.test(value) || value.includes("🔥");
-      });
-
-    if (heatLeaf?.parentElement) return heatLeaf.parentElement;
-
-    const tagLeaf = [...card.querySelectorAll("span,small,em")]
-      .find((element) => {
-        const value = normalize(element.textContent);
-        return /网盘|电影|影视|动漫|短剧|小说|学习资料/.test(value);
-      });
-
-    return tagLeaf?.parentElement || null;
+    return candidates[0] || null;
   }
 
-  function applyConfiguredRatings(config) {
+  function originalHeatText(element) {
+    if (element.dataset.originalHeatText) {
+      return element.dataset.originalHeatText;
+    }
+
+    let value = normalize(element.textContent);
+
+    // Remove rating text written by older fixes while preserving heat.
+    value = value
+      .replace(/^⭐\s*\d+(?:\.\d+)?\s*/u, "")
+      .replace(/^★\s*\d+(?:\.\d+)?\s*/u, "")
+      .trim();
+
+    const heatIndex = value.indexOf("🔥");
+    if (heatIndex >= 0) value = value.slice(heatIndex);
+
+    element.dataset.originalHeatText = value;
+    return value;
+  }
+
+  function applyRatingsBeforeHeat(config) {
     if (!config) return;
+
+    // Remove old extra rating nodes that previously broke the card layout.
+    document.querySelectorAll(
+      "[data-configured-rating],.configured-rating-value"
+    ).forEach((element) => element.remove());
 
     const resources = configuredResourceMap(config);
 
     document.querySelectorAll("[data-resource-id]").forEach((target) => {
-      const resourceId = String(target.dataset.resourceId || "");
-      const resource = resources.get(resourceId);
+      const resource = resources.get(String(target.dataset.resourceId || ""));
       if (!resource) return;
 
-      const card = target.closest("button,article,li,.resource-card,.resource-item,.recent-update-item")
-        || target;
+      const card = target.closest(
+        "button,article,li,.resource-card,.resource-item,.recent-update-item"
+      ) || target;
 
-      if (
-        card.querySelector("[data-configured-rating]")
-        || card.querySelector(".recent-update-rating")
-      ) {
-        return;
-      }
+      const heatElement = smallestHeatElement(card);
+      if (!heatElement) return;
 
-      const rating = Math.max(0, Math.min(10, Number(resource.rating) || 0));
-      const badge = document.createElement("span");
-      badge.setAttribute("data-configured-rating", "true");
-      badge.className = "configured-rating-value";
-      badge.textContent = `⭐ ${rating.toFixed(1)}`;
-      badge.title = `评分 ${rating.toFixed(1)}`;
+      const heatText = originalHeatText(heatElement);
+      if (!heatText.includes("🔥")) return;
 
-      const metricContainer = findMetricContainer(card);
+      const rating = Math.max(
+        0,
+        Math.min(10, Number(resource.rating) || 0)
+      );
 
-      if (metricContainer) {
-        const heatElement = [...metricContainer.children]
-          .find((element) => normalize(element.textContent).includes("🔥"));
-
-        if (heatElement) {
-          metricContainer.insertBefore(badge, heatElement);
-        } else {
-          metricContainer.appendChild(badge);
-        }
-      } else {
-        const arrow = card.querySelector(
-          ".recent-update-arrow,[class*='arrow'],[class*='chevron']"
-        );
-
-        if (arrow) {
-          arrow.insertAdjacentElement("beforebegin", badge);
-        } else {
-          card.appendChild(badge);
-        }
-      }
+      heatElement.textContent = `⭐ ${rating.toFixed(1)}　${heatText}`;
+      heatElement.dataset.ratingBeforeHeat = "true";
+      heatElement.style.whiteSpace = "nowrap";
     });
   }
 
-  function scheduleConfiguredRatings(config) {
-    requestAnimationFrame(() => applyConfiguredRatings(config));
-    setTimeout(() => applyConfiguredRatings(config), 120);
-    setTimeout(() => applyConfiguredRatings(config), 420);
+  let ratingApplyTimer = null;
+
+  function scheduleRatingsBeforeHeat(config) {
+    clearTimeout(ratingApplyTimer);
+    ratingApplyTimer = setTimeout(
+      () => applyRatingsBeforeHeat(config),
+      60
+    );
   }
 
   async function refreshPublic() {
@@ -1227,7 +1161,7 @@
         renderPublic(currentConfig);
       }
 
-      scheduleConfiguredRatings(currentConfig);
+      scheduleRatingsBeforeHeat(currentConfig);
     } catch {
       // Keep the existing page during a temporary wake-up/network error.
     }
@@ -1235,6 +1169,15 @@
 
   function startPublic() {
     refreshPublic();
+
+    const nativeListObserver = new MutationObserver(() => {
+      if (currentConfig) scheduleRatingsBeforeHeat(currentConfig);
+    });
+
+    nativeListObserver.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
 
     window.addEventListener("popstate", () => {
       document.getElementById(SECTION_ID)?.remove();
@@ -1256,15 +1199,6 @@
       });
 
       observer.observe(document.body, {
-        childList: true,
-        subtree: true
-      });
-
-      const ratingObserver = new MutationObserver(() => {
-        if (currentConfig) scheduleConfiguredRatings(currentConfig);
-      });
-
-      ratingObserver.observe(document.body, {
         childList: true,
         subtree: true
       });
