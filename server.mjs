@@ -757,11 +757,18 @@ async function serveStatic(req, res, url) {
     // Safely load the configurable expiry notice on the public and admin pages.
     if (["/index.html", "/search.html", "/admin.html"].includes(pathname)) {
       let html = content.toString("utf8");
-      const noticeScript = '<script src="/notice-config.js?v=20260719-3"></script>';
-      if (!html.includes("/notice-config.js")) {
+      const noticeScript = '<script src="/notice-config.js?v=20260719-5"></script>';
+      const allLinksScript = '<script src="/all-links-modal.js?v=20260719-1"></script>';
+      const scripts = [
+        !html.includes("/notice-config.js") ? noticeScript : "",
+        ["/index.html", "/search.html"].includes(pathname) && !html.includes("/all-links-modal.js")
+          ? allLinksScript
+          : ""
+      ].filter(Boolean).join("\n");
+      if (scripts) {
         html = /<\/body>/i.test(html)
-          ? html.replace(/<\/body>/i, `${noticeScript}\n</body>`)
-          : `${html}\n${noticeScript}`;
+          ? html.replace(/<\/body>/i, `${scripts}\n</body>`)
+          : `${html}\n${scripts}`;
       }
       content = Buffer.from(html, "utf8");
     }
