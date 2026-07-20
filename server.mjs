@@ -77,7 +77,9 @@ function defaultSiteOps() {
     },
     settings: {
       requestEnabled: true,
-      feedbackEnabled: true
+      feedbackEnabled: true,
+      recommendEnabled: true,
+      recommendedSourceId: ""
     },
     updatedAt: ""
   };
@@ -159,7 +161,12 @@ function normalizeSiteOpsStore(value) {
     },
     settings: {
       requestEnabled: value?.settings?.requestEnabled !== false,
-      feedbackEnabled: value?.settings?.feedbackEnabled !== false
+      feedbackEnabled: value?.settings?.feedbackEnabled !== false,
+      recommendEnabled: value?.settings?.recommendEnabled !== false,
+      recommendedSourceId: cleanText(
+        value?.settings?.recommendedSourceId,
+        40
+      )
     },
     updatedAt: cleanText(value?.updatedAt, 40) || fallback.updatedAt
   };
@@ -663,8 +670,42 @@ function normalizeConfig(input, previous = {}) {
       "offline"
     ]);
 
+    const hasRecommendedSourceField =
+      Object.prototype.hasOwnProperty.call(
+        resource,
+        "recommendedSourceId"
+      );
+
+    const requestedRecommendedSourceId = cleanText(
+      resource.recommendedSourceId,
+      40
+    );
+
+    const previousRecommendedSourceId = cleanText(
+      previousResource?.recommendedSourceId,
+      40
+    );
+
+    const recommendedSourceId = hasRecommendedSourceField
+      ? (
+          sourceIds.has(requestedRecommendedSourceId)
+          && Boolean(links[requestedRecommendedSourceId])
+            ? requestedRecommendedSourceId
+            : ""
+        )
+      : (
+          sourceIds.has(previousRecommendedSourceId)
+          && Boolean(links[previousRecommendedSourceId])
+            ? previousRecommendedSourceId
+            : ""
+        );
+
     return {
       ...normalizedResource,
+
+      // Each resource can independently select its recommended cloud drive.
+      // Changing this setting does not alter the resource's recent-update date.
+      recommendedSourceId,
 
       // Preserve the independently configured front-end resource status when
       // the normal resource editor is saved.
@@ -810,6 +851,10 @@ function adminOpsSnapshot() {
       title: resource.title,
       category: resource.category,
       visible: resource.visible !== false
+    })),
+    sources: (Array.isArray(configCache?.sources) ? configCache.sources : []).map((source) => ({
+      id: source.id,
+      label: source.label
     }))
   };
 }
@@ -1144,6 +1189,37 @@ async function handleApi(req, res, url) {
     return json(res, 200, adminOpsSnapshot(), securityHeaders());
   }
 
+  if (req.method === "PUT" && url.pathname === "/api/admin/site-ops/settings") {
+    if (!requirePermission(adminSession, res, "resources")) return;
+
+    const body = await readJsonBody(req, 64 * 1024);
+    const sourceIds = new Set(
+      (Array.isArray(configCache?.sources) ? configCache.sources : [])
+        .map((source) => String(source.id))
+    );
+
+    const requestedSourceId = cleanText(
+      body?.recommendedSourceId,
+      40
+    );
+
+    siteOpsStore.settings = {
+      ...siteOpsStore.settings,
+      recommendEnabled: body?.recommendEnabled !== false,
+      recommendedSourceId: sourceIds.has(requestedSourceId)
+        ? requestedSourceId
+        : ""
+    };
+
+    await queueSiteOpsSave();
+
+    return json(res, 200, {
+      ok: true,
+      settings: siteOpsStore.settings,
+      message: "推荐网盘设置已保存"
+    }, securityHeaders());
+  }
+
   if (req.method === "PUT" && url.pathname === "/api/admin/site-ops/statuses") {
     if (!requirePermission(adminSession, res, "resources")) return;
     const body = await readJsonBody(req, 256 * 1024);
@@ -1354,8 +1430,8 @@ async function serveStatic(req, res, url) {
       const qrPromoScript = '<script src="/qr-promo-config.js?v=20260719-1"></script>';
       const recentUpdatesScript = '<script src="/recent-updates-config.js?v=20260720-3"></script>';
       const yearConfigScript = '<script src="/year-config.js?v=20260720-1"></script>';
-      const siteOptimizationScript = '<script src="/site-optimization.js?v=20260720-12"></script>';
-      const siteThemeStyle = '<link rel="stylesheet" href="/site-theme.css?v=20260720-10">';
+      const siteOptimizationScript = '<script src="/site-optimization.js?v=20260720-20"></script>';
+      const siteThemeStyle = '<link rel="stylesheet" href="/site-theme.css?v=20260720-18">';
       const scripts = [
         !html.includes("/notice-config.js") ? noticeScript : "",
         ["/index.html", "/search.html"].includes(pathname) && !html.includes("/all-links-modal.js")

@@ -25,6 +25,12 @@
   let adminData = null;
   let toastTimer = null;
   let lastOpenedResourceId = "";
+  let recommendationRenderTimer = null;
+  let recommendationDirty = false;
+
+  // year-config.js loads before this file. Keeping the existing wrapper in
+  // the chain ensures year and recommendation are saved together.
+  const previousFetch = window.fetch.bind(window);
 
   function normalize(value) {
     return String(value ?? "").replace(/\s+/g, " ").trim();
@@ -37,6 +43,34 @@
       .replaceAll(">", "&gt;")
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#039;");
+  }
+
+  function requestPath(input) {
+    try {
+      const raw = typeof input === "string" ? input : input?.url;
+      return new URL(raw, location.origin).pathname;
+    } catch {
+      return "";
+    }
+  }
+
+  function requestMethod(input, init) {
+    return normalize(
+      init?.method || input?.method || "GET"
+    ).toUpperCase();
+  }
+
+  function unwrapConfig(payload) {
+    if (
+      payload
+      && typeof payload === "object"
+      && payload.config
+      && typeof payload.config === "object"
+    ) {
+      return payload.config;
+    }
+
+    return payload;
   }
 
   function addStyles() {
@@ -432,6 +466,109 @@
     document.head.appendChild(style);
   }
 
+  function recommendationSelections() {
+    const byId = new Map();
+    const byIndex = new Map();
+
+    document.querySelectorAll(
+      "[data-resource-recommended-source]"
+    ).forEach((select) => {
+      const resourceId = normalize(
+        select.dataset.resourceRecommendedSource
+      );
+      const index = Number(select.dataset.resourceIndex);
+      const value = normalize(select.value);
+
+      if (resourceId) byId.set(resourceId, value);
+      if (Number.isInteger(index) && index >= 0) {
+        byIndex.set(index, value);
+      }
+    });
+
+    return { byId, byIndex };
+  }
+
+  function addRecommendationsToPayload(payload) {
+    if (!payload || !Array.isArray(payload.resources)) {
+      return payload;
+    }
+
+    const selections = recommendationSelections();
+
+    payload.resources = payload.resources.map((resource, index) => {
+      const resourceId = String(resource.id ?? "");
+
+      const selected = resourceId && selections.byId.has(resourceId)
+        ? selections.byId.get(resourceId)
+        : selections.byIndex.has(index)
+          ? selections.byIndex.get(index)
+          : normalize(resource.recommendedSourceId);
+
+      return {
+        ...resource,
+        recommendedSourceId: selected || ""
+      };
+    });
+
+    return payload;
+  }
+
+  window.fetch = async function recommendationAwareFetch(
+    input,
+    init = {}
+  ) {
+    const path = requestPath(input);
+    const method = requestMethod(input, init);
+    let nextInit = init;
+
+    if (
+      location.pathname.startsWith("/admin")
+      && path === "/api/admin/config"
+      && method === "PUT"
+      && typeof init?.body === "string"
+    ) {
+      try {
+        const payload = addRecommendationsToPayload(
+          JSON.parse(init.body)
+        );
+
+        nextInit = {
+          ...init,
+          body: JSON.stringify(payload)
+        };
+      } catch {
+        // Keep the original request if another module sends non-JSON data.
+      }
+    }
+
+    const response = await previousFetch(input, nextInit);
+
+    if (
+      response.ok
+      && ["/api/config", "/api/admin/config"].includes(path)
+      && ["GET", "PUT"].includes(method)
+    ) {
+      response.clone().json().then((payload) => {
+        const nextConfig = unwrapConfig(payload);
+
+        if (
+          nextConfig
+          && Array.isArray(nextConfig.resources)
+        ) {
+          config = nextConfig;
+
+          if (method === "PUT") {
+            recommendationDirty = false;
+          }
+
+          scheduleRecommendationFields();
+        }
+      }).catch(() => {});
+    }
+
+    return response;
+  };
+
   async function fetchJson(url, options = {}) {
     const response = await fetch(url, {
       credentials: "same-origin",
@@ -566,81 +703,57 @@
       ))[0] || null;
   }
 
-  function statusMetadataHost(card) {
-    const explicit = card.querySelector(
-      ".recent-update-meta,"
-      + "[class*='resource-meta'],"
-      + "[class*='item-meta'],"
-      + "[class*='card-meta'],"
-      + "[class*='tag-row'],"
-      + "[class*='tags'],"
-      + "[class*='badge-row']"
+  function statusMetadataLeaf(card) {
+    const candidates = [
+      smallestLeafContaining(card, /🔥/),
+      smallestLeafContaining(card, /⭐|★/),
+      smallestLeafContaining(
+        card,
+        /百度网盘|夸克网盘|UC网盘|迅雷网盘/
+      ),
+      smallestLeafContaining(
+        card,
+        /电影|短剧|动漫|影视|小说|学习资料/
+      )
+    ].filter(Boolean);
+
+    return candidates.find((element) => (
+      !element.closest(
+        "[class*='poster'],[class*='cover'],[class*='image'],figure"
+      )
+    )) || null;
+  }
+
+  function statusSlot(card, resource) {
+    const resourceId = String(resource.id);
+    let slot = card.querySelector(
+      `[data-site-status-slot="${resourceId}"]`
     );
 
-    if (
-      explicit
-      && !explicit.closest(
-        "[class*='poster'],[class*='cover'],[class*='image'],figure"
-      )
-    ) {
-      return explicit;
+    const leaf = statusMetadataLeaf(card);
+    if (!leaf?.parentElement) {
+      slot?.remove();
+      return null;
     }
 
-    const heat = smallestLeafContaining(card, /🔥/);
-    if (
-      heat?.parentElement
-      && !heat.parentElement.closest(
-        "[class*='poster'],[class*='cover'],[class*='image'],figure"
-      )
-    ) {
-      return heat.parentElement;
+    if (!slot) {
+      slot = document.createElement("span");
+      slot.className = "site-status-inline-slot";
+      slot.dataset.siteStatusSlot = resourceId;
     }
 
-    const rating = smallestLeafContaining(card, /⭐|★/);
-    if (
-      rating?.parentElement
-      && !rating.parentElement.closest(
-        "[class*='poster'],[class*='cover'],[class*='image'],figure"
-      )
-    ) {
-      return rating.parentElement;
+    if (slot.previousElementSibling !== leaf) {
+      leaf.insertAdjacentElement("afterend", slot);
     }
 
-    const cloudTag = smallestLeafContaining(
-      card,
-      /百度网盘|夸克网盘|UC网盘|迅雷网盘/
-    );
-
-    if (
-      cloudTag?.parentElement
-      && !cloudTag.parentElement.closest(
-        "[class*='poster'],[class*='cover'],[class*='image'],figure"
-      )
-    ) {
-      return cloudTag.parentElement;
-    }
-
-    const categoryTag = smallestLeafContaining(
-      card,
-      /电影|短剧|动漫|影视|小说|学习资料/
-    );
-
-    if (
-      categoryTag?.parentElement
-      && !categoryTag.parentElement.closest(
-        "[class*='poster'],[class*='cover'],[class*='image'],figure"
-      )
-    ) {
-      return categoryTag.parentElement;
-    }
-
-    return null;
+    return slot;
   }
 
   function ensureStatusBadge(card, resource, info) {
+    const resourceId = String(resource.id);
     const existing = [
       ...card.querySelectorAll(
-        `[data-site-resource-status][data-site-resource-id="${String(resource.id)}"]`
+        `[data-site-resource-status][data-site-resource-id="${resourceId}"]`
       )
     ];
 
@@ -649,43 +762,39 @@
 
     if (!info) {
       badge?.remove();
+      card.querySelector(
+        `[data-site-status-slot="${resourceId}"]`
+      )?.remove();
       return null;
     }
 
-    const host = statusMetadataHost(card);
-    if (!host) {
+    const slot = statusSlot(card, resource);
+    if (!slot) {
       badge?.remove();
       return null;
     }
 
-    host.classList.add("site-status-meta-host");
-
     if (!badge) {
       badge = document.createElement("span");
       badge.dataset.siteResourceStatus = "true";
-      badge.dataset.siteResourceId = String(resource.id);
+      badge.dataset.siteResourceId = resourceId;
     }
 
-    if (badge.parentElement !== host) {
-      host.appendChild(badge);
+    if (badge.parentElement !== slot) {
+      slot.appendChild(badge);
     }
 
-    const nextClassName = `site-resource-status ${info.className}`;
-    const nextText = `${info.icon} ${info.label}`;
-
-    if (badge.className !== nextClassName) {
-      badge.className = nextClassName;
-    }
-
-    if (badge.textContent !== nextText) {
-      badge.textContent = nextText;
-    }
-
+    badge.className = `site-resource-status ${info.className}`;
+    badge.textContent = `${info.icon} ${info.label}`;
     badge.title = `资源状态：${info.label}`;
     return badge;
   }
 
   function applyStatusBadges() {
+    document.querySelectorAll(".site-status-meta-host").forEach(
+      (element) => element.classList.remove("site-status-meta-host")
+    );
+
     const statuses = publicOps?.statuses || {};
     const entries = canonicalStatusEntries();
     const validBadges = new Set();
@@ -1148,32 +1257,19 @@
   }
 
   function enhanceResourceCards() {
-    canonicalStatusEntries().forEach(({ card, resource }) => {
-      if (!card || card.closest("#adminView")) return;
-      if (card.closest("#allCloudLinksModal")) return;
-      if (card.closest("#qrPromoModal")) return;
+    // Restore the native resource-card layout. The previous CTA enhancement
+    // could mistake a section container for a single resource card.
+    document.querySelectorAll("[data-site-resource-cta]").forEach(
+      (element) => element.remove()
+    );
 
-      card.classList.add("site-conversion-card");
+    document.querySelectorAll(".site-conversion-card").forEach(
+      (element) => element.classList.remove("site-conversion-card")
+    );
 
-      const id = String(resource.id);
-      let chip = card.querySelector(
-        `[data-site-resource-cta="${id}"]`
-      );
-
-      if (chip) return;
-
-      const arrow = findCardArrow(card);
-      if (!arrow?.parentElement) return;
-
-      chip = document.createElement("span");
-      chip.className = "site-resource-cta-chip";
-      chip.dataset.siteResourceCta = id;
-      chip.setAttribute("aria-hidden", "true");
-      chip.textContent = "立即获取";
-
-      arrow.insertAdjacentElement("beforebegin", chip);
-      arrow.parentElement.classList.add("site-card-action-host");
-    });
+    document.querySelectorAll(".site-card-action-host").forEach(
+      (element) => element.classList.remove("site-card-action-host")
+    );
   }
 
   function installHomeValueStrip() {
@@ -1214,6 +1310,63 @@
       card?.querySelector(".all-links-provider-badge")?.textContent
       || "网盘"
     );
+  }
+
+  function resourceRecommendedProviderLabel(resource) {
+    const sourceId = normalize(resource?.recommendedSourceId);
+    if (!sourceId) return "";
+
+    const source = (
+      Array.isArray(config?.sources) ? config.sources : []
+    ).find((item) => String(item.id) === sourceId);
+
+    return normalize(source?.label);
+  }
+
+  function orderedProviderCards(modal, resource) {
+    modal.querySelectorAll("[data-site-other-providers]").forEach(
+      (element) => element.remove()
+    );
+
+    const cards = [...modal.querySelectorAll(".all-links-card")];
+
+    cards.forEach((card) => {
+      card.classList.remove(
+        "site-recommended-provider",
+        "site-alternative-provider"
+      );
+      card.querySelector("[data-site-recommended]")?.remove();
+    });
+
+    const wantedLabel = resourceRecommendedProviderLabel(resource);
+
+    if (!wantedLabel) {
+      return {
+        cards,
+        recommendationEnabled: false
+      };
+    }
+
+    const selected = cards.find(
+      (card) => providerLabel(card) === wantedLabel
+    );
+
+    // A selected source without a valid link does not become recommended.
+    if (!selected) {
+      return {
+        cards,
+        recommendationEnabled: false
+      };
+    }
+
+    if (cards[0] && selected !== cards[0]) {
+      cards[0].parentElement?.insertBefore(selected, cards[0]);
+    }
+
+    return {
+      cards: [...modal.querySelectorAll(".all-links-card")],
+      recommendationEnabled: true
+    };
   }
 
   function ensureTransferSummary(modal, resource, cards) {
@@ -1302,8 +1455,27 @@
       }
 
       panel.querySelector("button")?.addEventListener("click", () => {
-        const trigger = document.querySelector(".qr-promo-floating");
-        if (trigger) trigger.click();
+        const closeButton = modal.querySelector(
+          "[data-all-links-close],.all-links-close-icon,"
+          + ".all-links-bottom-close"
+        );
+
+        closeButton?.click();
+
+        if (!modal.hidden) {
+          modal.hidden = true;
+          document.body.classList.remove(
+            "all-links-modal-open",
+            "site-transfer-modal-open"
+          );
+        }
+
+        setTimeout(() => {
+          const trigger = document.querySelector(".qr-promo-floating");
+          if (trigger) {
+            trigger.click();
+          }
+        }, 180);
       });
     }
 
@@ -1443,7 +1615,11 @@
         });
       }
 
-      const cards = [...modal.querySelectorAll(".all-links-card")];
+      const {
+        cards,
+        recommendationEnabled
+      } = orderedProviderCards(modal, resource);
+
       ensureTransferSummary(modal, resource, cards);
 
       cards.forEach((card, index) => {
@@ -1453,10 +1629,18 @@
         const openLink = card.querySelector(".all-links-open");
         const copyButton = card.querySelector(".all-links-copy");
 
-        card.classList.toggle("site-recommended-provider", index === 0);
-        card.classList.toggle("site-alternative-provider", index > 0);
+        const isRecommended = recommendationEnabled && index === 0;
 
-        if (index === 0) {
+        card.classList.toggle(
+          "site-recommended-provider",
+          isRecommended
+        );
+        card.classList.toggle(
+          "site-alternative-provider",
+          !isRecommended
+        );
+
+        if (isRecommended) {
           if (!provider?.querySelector("[data-site-recommended]")) {
             const badge = document.createElement("span");
             badge.className = "site-recommended-badge";
@@ -1512,7 +1696,8 @@
         }
 
         if (
-          index === 1
+          recommendationEnabled
+          && index === 1
           && !card.previousElementSibling?.matches(
             "[data-site-other-providers]"
           )
@@ -1585,7 +1770,11 @@
         }
       });
 
-      ensureStickyTransferAction(modal, cards[0], resource);
+      if (recommendationEnabled) {
+        ensureStickyTransferAction(modal, cards[0], resource);
+      } else {
+        modal.querySelector("[data-site-transfer-sticky]")?.remove();
+      }
     }, 70);
   }
 
@@ -1629,6 +1818,265 @@
         sendEvent("qr_open");
       }
     });
+  }
+
+  function adminResourceCards() {
+    const editor = document.getElementById("resourcesEditor");
+    if (!editor) return [];
+
+    const direct = [...editor.children].filter(
+      (element) => element.nodeType === Node.ELEMENT_NODE
+    );
+
+    return direct.length
+      ? direct
+      : [...editor.querySelectorAll(
+          ".resource-editor-card,.resource-editor-item,.editor-section"
+        )];
+  }
+
+  function adminLabelText(label) {
+    return normalize(label?.textContent);
+  }
+
+  function adminResourceTitleInput(card) {
+    const labels = [...card.querySelectorAll("label")];
+
+    for (const label of labels) {
+      if (!/列表完整标题|完整标题|资源标题/.test(
+        adminLabelText(label)
+      )) {
+        continue;
+      }
+
+      const input = label.querySelector("input,textarea");
+      if (input) return input;
+    }
+
+    return card.querySelector(
+      "input[data-field='title'],"
+      + "input[name*='title'],"
+      + "textarea[name*='title']"
+    );
+  }
+
+  function adminCardResource(card, index) {
+    const directId = normalize(
+      card.dataset.resourceId
+      || card.dataset.yearResourceId
+      || card.querySelector("[data-resource-id]")?.dataset.resourceId
+    );
+
+    if (directId) {
+      const byId = resources().find(
+        (resource) => String(resource.id) === directId
+      );
+
+      if (byId) return byId;
+    }
+
+    const title = normalize(adminResourceTitleInput(card)?.value);
+    if (title) {
+      const byTitle = resources().find(
+        (resource) => normalize(resource.title) === title
+      );
+
+      if (byTitle) return byTitle;
+    }
+
+    return resources()[index] || null;
+  }
+
+  function recommendationOptions(resource) {
+    const selected = normalize(resource?.recommendedSourceId);
+    const resourceLinks = resource?.links || {};
+
+    const sourceOptions = (
+      Array.isArray(config?.sources) ? config.sources : []
+    ).map((source) => {
+      const sourceId = String(source.id);
+      const hasLink = Boolean(normalize(resourceLinks[sourceId]));
+      const suffix = hasLink ? "" : "（尚未填写链接）";
+
+      return `
+        <option
+          value="${escapeHtml(sourceId)}"
+          ${selected === sourceId ? "selected" : ""}
+        >${escapeHtml(source.label)}${suffix}</option>
+      `;
+    }).join("");
+
+    return `
+      <option value="" ${selected ? "" : "selected"}>
+        不设置推荐网盘
+      </option>
+      ${sourceOptions}
+    `;
+  }
+
+  function markRecommendationDirty() {
+    recommendationDirty = true;
+
+    const status = document.getElementById("saveStatus");
+    if (status) status.textContent = "有未保存更改";
+
+    const button =
+      document.getElementById("saveButton")
+      || [...document.querySelectorAll("button")].find(
+        (item) => /保存并发布|保存/.test(
+          normalize(item.textContent)
+        )
+      );
+
+    if (button) {
+      button.disabled = false;
+      button.classList.add("has-changes");
+    }
+  }
+
+  function recommendationInsertPoint(card) {
+    const headings = [
+      ...card.querySelectorAll("h2,h3,h4,strong,div,span")
+    ].filter((element) => (
+      normalize(element.textContent) === "网盘链接"
+      && ![...element.children].some(
+        (child) => normalize(child.textContent) === "网盘链接"
+      )
+    ));
+
+    const heading = headings[0];
+
+    if (heading) {
+      const parent = heading.parentElement;
+      if (parent && parent !== card) {
+        return {
+          mode: "after",
+          target: heading
+        };
+      }
+    }
+
+    const deleteButton = [...card.querySelectorAll("button")].find(
+      (button) => /删除资源/.test(normalize(button.textContent))
+    );
+
+    if (deleteButton?.parentElement) {
+      return {
+        mode: "before",
+        target: deleteButton.parentElement
+      };
+    }
+
+    return {
+      mode: "append",
+      target: card
+    };
+  }
+
+  function createRecommendationField(resource, index) {
+    const field = document.createElement("label");
+    field.className = "resource-recommend-source-field";
+    field.dataset.resourceRecommendField = "true";
+
+    field.innerHTML = `
+      <span class="resource-recommend-source-copy">
+        <strong>推荐网盘</strong>
+        <small>仅控制当前资源前台优先展示的平台</small>
+      </span>
+      <select
+        data-resource-recommended-source="${escapeHtml(resource.id)}"
+        data-resource-index="${index}"
+      >
+        ${recommendationOptions(resource)}
+      </select>
+    `;
+
+    field.querySelector("select")?.addEventListener("change", (event) => {
+      resource.recommendedSourceId = normalize(event.currentTarget.value);
+      markRecommendationDirty();
+    });
+
+    return field;
+  }
+
+  function injectRecommendationFields() {
+    if (!location.pathname.startsWith("/admin")) return;
+    if (!config || !Array.isArray(config.resources)) return;
+
+    // Remove the obsolete global recommendation controls.
+    document.querySelectorAll(
+      "[data-site-ops-save-recommend],"
+      + ".site-ops-recommend-config"
+    ).forEach((element) => element.remove());
+
+    adminResourceCards().forEach((card, index) => {
+      const resource = adminCardResource(card, index);
+      if (!resource) return;
+
+      const existing = card.querySelector(
+        "[data-resource-recommend-field]"
+      );
+
+      if (existing) {
+        const select = existing.querySelector(
+          "[data-resource-recommended-source]"
+        );
+
+        if (select) {
+          select.dataset.resourceRecommendedSource =
+            String(resource.id);
+          select.dataset.resourceIndex = String(index);
+
+          if (
+            document.activeElement !== select
+            && !recommendationDirty
+          ) {
+            select.innerHTML = recommendationOptions(resource);
+          }
+        }
+
+        return;
+      }
+
+      const field = createRecommendationField(resource, index);
+      const point = recommendationInsertPoint(card);
+
+      if (point.mode === "after") {
+        point.target.insertAdjacentElement("afterend", field);
+      } else if (point.mode === "before") {
+        point.target.insertAdjacentElement("beforebegin", field);
+      } else {
+        point.target.appendChild(field);
+      }
+    });
+  }
+
+  function scheduleRecommendationFields() {
+    clearTimeout(recommendationRenderTimer);
+    recommendationRenderTimer = setTimeout(
+      injectRecommendationFields,
+      90
+    );
+  }
+
+  async function loadAdminConfigForRecommendations() {
+    try {
+      const payload = await fetchJson(
+        `/api/admin/config?_=${Date.now()}`
+      );
+
+      const nextConfig = unwrapConfig(payload);
+
+      if (
+        nextConfig
+        && Array.isArray(nextConfig.resources)
+      ) {
+        config = nextConfig;
+        scheduleRecommendationFields();
+      }
+    } catch {
+      // Recommendation is optional; the normal admin remains usable.
+    }
   }
 
   function topEntries(map, limit = 8) {
@@ -2001,7 +2449,13 @@
   function initializeAdmin() {
     addStyles();
     installAdminCenter();
-    const observer = new MutationObserver(installAdminCenter);
+    loadAdminConfigForRecommendations();
+
+    const observer = new MutationObserver(() => {
+      installAdminCenter();
+      scheduleRecommendationFields();
+    });
+
     observer.observe(document.body, {
       childList: true,
       subtree: true,

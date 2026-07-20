@@ -2057,3 +2057,224 @@ body.site-transfer-modal-open .qr-promo-floating {
     width: 100%;
   }
 }
+
+
+/* ==========================================================
+   Hot-list layout restore + recommended provider settings
+   ========================================================== */
+
+/* Restore native resource list layout. */
+.site-conversion-card {
+  overflow: visible !important;
+}
+
+.site-conversion-card::before,
+.site-resource-cta-chip {
+  display: none !important;
+}
+
+.site-card-action-host {
+  display: revert !important;
+}
+
+/* Status gets its own inline slot and never changes an existing row layout. */
+.site-status-meta-host {
+  display: revert !important;
+  align-items: revert !important;
+  flex-wrap: revert !important;
+  gap: revert !important;
+}
+
+.site-status-inline-slot {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.site-status-inline-slot > .site-resource-status {
+  display: inline-flex !important;
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 17px !important;
+  height: 17px !important;
+  align-items: center;
+  border-radius: 999px !important;
+  padding: 0 6px !important;
+  font-size: 8px !important;
+  line-height: 17px !important;
+  white-space: nowrap !important;
+}
+
+/* Recommendation settings in admin operations center. */
+.site-ops-recommend-config {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(230px, .65fr);
+  gap: 12px;
+  padding: 14px;
+}
+
+.site-ops-switch-row,
+.site-ops-recommend-select {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--wp-line);
+  border-radius: 13px;
+  padding: 10px 12px;
+  background: #f8f9fb;
+}
+
+.site-ops-switch-row strong,
+.site-ops-switch-row small {
+  display: block;
+}
+
+.site-ops-switch-row strong {
+  color: #34404d;
+  font-size: 13px;
+}
+
+.site-ops-switch-row small {
+  margin-top: 3px;
+  color: #9099a5;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.site-ops-switch-row input {
+  width: 20px !important;
+  height: 20px;
+  flex: 0 0 auto;
+  accent-color: var(--wp-accent);
+}
+
+.site-ops-recommend-select {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.site-ops-recommend-select > span {
+  color: #697381;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.site-ops-recommend-select select {
+  width: 100%;
+  min-height: 40px;
+}
+
+.site-ops-save-recommend {
+  border: 0 !important;
+  border-radius: 10px !important;
+  padding: 0 14px;
+  color: #fff !important;
+  background: linear-gradient(
+    135deg,
+    var(--wp-accent),
+    #b850ef
+  ) !important;
+  box-shadow: 0 8px 18px rgba(198, 70, 231, .15);
+  font-weight: 850;
+}
+
+/* Ensure QR modal appears above after closing the resource modal. */
+.qr-promo-overlay {
+  z-index: 15050 !important;
+}
+
+@media (max-width: 767px) {
+  .site-ops-recommend-config {
+    grid-template-columns: 1fr;
+  }
+
+  .site-ops-save-recommend {
+    width: 100%;
+    min-height: 42px;
+  }
+}
+
+
+/* ==========================================================
+   Per-resource recommended cloud drive
+   ========================================================== */
+
+.resource-recommend-source-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(210px, .55fr);
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  margin: 10px 0 13px;
+  border: 1px solid rgba(121, 136, 156, .14);
+  border-radius: 13px;
+  padding: 11px 12px;
+  color: #3d4857;
+  background:
+    linear-gradient(145deg, #fffaf6, #f8fbfc);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.72);
+}
+
+.resource-recommend-source-copy {
+  min-width: 0;
+}
+
+.resource-recommend-source-copy strong,
+.resource-recommend-source-copy small {
+  display: block;
+}
+
+.resource-recommend-source-copy strong {
+  color: #34404d;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.resource-recommend-source-copy small {
+  margin-top: 4px;
+  color: #929aa6;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.resource-recommend-source-field select {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  border: 1px solid rgba(121, 136, 156, .19);
+  border-radius: 10px;
+  outline: 0;
+  padding: 0 34px 0 11px;
+  color: #303a47;
+  background-color: #fff;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.resource-recommend-source-field select:focus {
+  border-color: rgba(230, 83, 241, .34);
+  box-shadow: 0 0 0 4px rgba(230, 83, 241, .08);
+}
+
+/* Obsolete global recommendation controls are hidden for compatibility. */
+.site-ops-recommend-config,
+[data-site-ops-save-recommend] {
+  display: none !important;
+}
+
+@media (max-width: 680px) {
+  .resource-recommend-source-field {
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+
+  .resource-recommend-source-field select {
+    min-height: 44px;
+    font-size: 16px;
+  }
+}
