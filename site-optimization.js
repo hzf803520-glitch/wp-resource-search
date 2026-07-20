@@ -489,16 +489,19 @@
     ) || null;
   }
 
-  function exactResourceTitleElement(resource) {
+  function exactResourceTitleElements(resource) {
     const wanted = normalize(resource?.title);
-    if (!wanted) return null;
+    if (!wanted) return [];
 
-    const candidates = [
+    return [
       ...document.querySelectorAll("h1,h2,h3,h4,strong,b,p,span,div")
     ].filter((element) => {
       if (element.closest("#adminView")) return false;
       if (element.closest("#allCloudLinksModal")) return false;
       if (element.closest("#qrPromoModal")) return false;
+      if (element.closest("[class*='poster'],[class*='cover'],[class*='image'],figure")) {
+        return false;
+      }
 
       const value = normalize(element.textContent);
       if (value !== wanted) return false;
@@ -507,93 +510,164 @@
         (child) => normalize(child.textContent) === wanted
       );
     });
-
-    return candidates[0] || null;
   }
 
   function canonicalStatusEntries() {
     const entries = [];
-    const seenCards = new Set();
-    const explicitResources = new Set();
+    const seenPairs = new Set();
 
+    function addEntry(card, resource) {
+      if (!card || !card.parentElement || !resource) return;
+      if (card.closest("#adminView")) return;
+      if (card.closest("#allCloudLinksModal")) return;
+      if (card.closest("#qrPromoModal")) return;
+
+      const key = `${String(resource.id)}::${entries.length}`;
+
+      const duplicate = entries.some((entry) => (
+        String(entry.resource.id) === String(resource.id)
+        && entry.card === card
+      ));
+
+      if (duplicate) return;
+
+      seenPairs.add(key);
+      entries.push({ card, resource });
+    }
+
+    // Strong match: every visible card that carries a resource ID.
     document.querySelectorAll("[data-resource-id]").forEach((target) => {
       const resourceId = normalize(target.dataset.resourceId);
       const resource = resourceById(resourceId);
       if (!resource) return;
 
-      const card = cardForTarget(target);
-      if (!card || !card.parentElement) return;
-      if (card.closest("#adminView")) return;
-      if (card.closest("#allCloudLinksModal")) return;
-      if (card.closest("#qrPromoModal")) return;
-
-      const duplicate = entries.some((entry) => (
-        String(entry.resource.id) === String(resource.id)
-        && (
-          entry.card === card
-          || entry.card.contains(card)
-          || card.contains(entry.card)
-        )
-      ));
-
-      if (duplicate) return;
-
-      seenCards.add(card);
-      explicitResources.add(String(resource.id));
-      entries.push({ card, resource });
+      addEntry(cardForTarget(target), resource);
     });
 
-    // Fallback only for cards that genuinely have no resource-id marker.
+    // Fallback: all title occurrences, so the same resource can display a
+    // status in hot resources, recent updates, search results and categories.
     resources().forEach((resource) => {
-      const titleElement = exactResourceTitleElement(resource);
-      if (!titleElement) return;
-
-      const card = cardForTarget(titleElement);
-      if (!card || !card.parentElement || seenCards.has(card)) return;
-
-      const overlaps = entries.some((entry) => (
-        String(entry.resource.id) === String(resource.id)
-        && (
-          entry.card === card
-          || entry.card.contains(card)
-          || card.contains(entry.card)
-        )
-      ));
-
-      if (overlaps) return;
-
-      seenCards.add(card);
-      entries.push({ card, resource });
+      exactResourceTitleElements(resource).forEach((titleElement) => {
+        addEntry(cardForTarget(titleElement), resource);
+      });
     });
 
     return entries;
   }
 
-  function ensureStatusBadge(card, resource, info) {
-    card.classList.add("site-status-card-anchor");
+  function smallestLeafContaining(card, pattern) {
+    return [...card.querySelectorAll("span,small,em,strong,p,div")]
+      .filter((element) => pattern.test(normalize(element.textContent)))
+      .filter((element) => ![...element.children].some(
+        (child) => pattern.test(normalize(child.textContent))
+      ))
+      .sort((left, right) => (
+        normalize(left.textContent).length - normalize(right.textContent).length
+      ))[0] || null;
+  }
 
-    const badges = [
+  function statusMetadataHost(card) {
+    const explicit = card.querySelector(
+      ".recent-update-meta,"
+      + "[class*='resource-meta'],"
+      + "[class*='item-meta'],"
+      + "[class*='card-meta'],"
+      + "[class*='tag-row'],"
+      + "[class*='tags'],"
+      + "[class*='badge-row']"
+    );
+
+    if (
+      explicit
+      && !explicit.closest(
+        "[class*='poster'],[class*='cover'],[class*='image'],figure"
+      )
+    ) {
+      return explicit;
+    }
+
+    const heat = smallestLeafContaining(card, /🔥/);
+    if (
+      heat?.parentElement
+      && !heat.parentElement.closest(
+        "[class*='poster'],[class*='cover'],[class*='image'],figure"
+      )
+    ) {
+      return heat.parentElement;
+    }
+
+    const rating = smallestLeafContaining(card, /⭐|★/);
+    if (
+      rating?.parentElement
+      && !rating.parentElement.closest(
+        "[class*='poster'],[class*='cover'],[class*='image'],figure"
+      )
+    ) {
+      return rating.parentElement;
+    }
+
+    const cloudTag = smallestLeafContaining(
+      card,
+      /百度网盘|夸克网盘|UC网盘|迅雷网盘/
+    );
+
+    if (
+      cloudTag?.parentElement
+      && !cloudTag.parentElement.closest(
+        "[class*='poster'],[class*='cover'],[class*='image'],figure"
+      )
+    ) {
+      return cloudTag.parentElement;
+    }
+
+    const categoryTag = smallestLeafContaining(
+      card,
+      /电影|短剧|动漫|影视|小说|学习资料/
+    );
+
+    if (
+      categoryTag?.parentElement
+      && !categoryTag.parentElement.closest(
+        "[class*='poster'],[class*='cover'],[class*='image'],figure"
+      )
+    ) {
+      return categoryTag.parentElement;
+    }
+
+    return null;
+  }
+
+  function ensureStatusBadge(card, resource, info) {
+    const existing = [
       ...card.querySelectorAll(
         `[data-site-resource-status][data-site-resource-id="${String(resource.id)}"]`
       )
     ];
 
-    let badge = badges.shift() || null;
-    badges.forEach((duplicate) => duplicate.remove());
+    let badge = existing.shift() || null;
+    existing.forEach((duplicate) => duplicate.remove());
 
     if (!info) {
       badge?.remove();
-      card.classList.remove("site-status-card-anchor");
       return null;
     }
+
+    const host = statusMetadataHost(card);
+    if (!host) {
+      badge?.remove();
+      return null;
+    }
+
+    host.classList.add("site-status-meta-host");
 
     if (!badge) {
       badge = document.createElement("span");
       badge.dataset.siteResourceStatus = "true";
       badge.dataset.siteResourceId = String(resource.id);
-      card.appendChild(badge);
-    } else if (badge.parentElement !== card) {
-      card.appendChild(badge);
+    }
+
+    if (badge.parentElement !== host) {
+      host.appendChild(badge);
     }
 
     const nextClassName = `site-resource-status ${info.className}`;
