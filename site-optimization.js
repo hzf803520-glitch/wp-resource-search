@@ -184,6 +184,67 @@
         font-size: 11px;
       }
 
+      .site-native-no-result-actions {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 9px;
+        margin-top: 14px;
+      }
+
+      .site-inline-request-button {
+        min-width: 116px;
+        min-height: 38px;
+        border: 0;
+        border-radius: 999px;
+        padding: 0 16px;
+        color: #fff;
+        background: linear-gradient(135deg, #ef53e2, #b35cff);
+        box-shadow: 0 8px 18px rgba(192, 77, 224, .20);
+        font: inherit;
+        font-size: 11px;
+        font-weight: 850;
+        cursor: pointer;
+        transition: transform .16s ease, box-shadow .16s ease;
+      }
+
+      .site-inline-request-button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 22px rgba(192, 77, 224, .25);
+      }
+
+      .site-inline-request-button:active {
+        transform: scale(.98);
+      }
+
+      .site-inline-request-button[disabled] {
+        color: #248b58;
+        background: #eaf8f0;
+        box-shadow: none;
+        cursor: default;
+      }
+
+      .site-inline-request-hint {
+        width: 100%;
+        margin-top: 7px;
+        color: #35a46a;
+        font-size: 10px;
+        line-height: 1.5;
+        text-align: center;
+      }
+
+      @media (max-width: 420px) {
+        .site-native-no-result-actions {
+          gap: 7px;
+        }
+
+        .site-inline-request-button {
+          min-width: 108px;
+          padding: 0 13px;
+        }
+      }
+
       .site-feedback-button {
         width: 100%;
         min-height: 38px;
@@ -467,6 +528,11 @@
     publicRenderTimer = setTimeout(() => {
       applyStatusBadges();
       enhanceLinksModal();
+
+      const keyword = currentSearchKeyword();
+      if (keyword) {
+        showNoResultCard(keyword);
+      }
     }, 100);
   }
 
@@ -612,59 +678,211 @@
     return cards.size;
   }
 
-  function noResultHost() {
-    return document.querySelector("main")
-      || document.querySelector(".page-shell")
-      || document.querySelector(".app")
-      || document.body;
+  function currentSearchKeyword(fallback = "") {
+    const inputValue = normalize(suggestionInput?.value);
+    if (inputValue) return inputValue;
+
+    const params = new URLSearchParams(location.search);
+    const queryValue = normalize(
+      params.get("q")
+      || params.get("keyword")
+      || params.get("search")
+      || params.get("query")
+    );
+
+    return queryValue || normalize(fallback);
   }
 
   function removeNoResultCard() {
     document.getElementById(NO_RESULT_ID)?.remove();
+
+    document.querySelectorAll("[data-site-inline-request]").forEach((button) => {
+      const wrapper = button.closest("[data-site-inline-request-wrapper]");
+      const clearButton = wrapper?.querySelector("[data-site-original-clear]");
+
+      if (wrapper && clearButton) {
+        clearButton.removeAttribute("data-site-original-clear");
+        wrapper.parentNode?.insertBefore(clearButton, wrapper);
+        wrapper.remove();
+      } else {
+        button.remove();
+      }
+    });
+  }
+
+  function nativeNoResultTitle() {
+    const candidates = [
+      ...document.querySelectorAll("h1,h2,h3,h4,strong,p,div")
+    ].filter((element) => {
+      if (element.closest("#adminView")) return false;
+
+      const value = normalize(element.textContent);
+      if (value !== "没有找到相关资源") return false;
+
+      return ![...element.children].some(
+        (child) => normalize(child.textContent) === "没有找到相关资源"
+      );
+    });
+
+    return candidates[0] || null;
+  }
+
+  function nativeNoResultCard() {
+    const title = nativeNoResultTitle();
+    if (!title) return null;
+
+    let node = title.parentElement;
+
+    while (node && node !== document.body) {
+      const clearButton = [...node.querySelectorAll("button,a,[role='button']")]
+        .find((button) => /清除筛选|清空筛选/.test(normalize(button.textContent)));
+
+      if (clearButton) {
+        return { card: node, title, clearButton };
+      }
+
+      node = node.parentElement;
+    }
+
+    return {
+      card: title.closest("section,article,div") || title.parentElement,
+      title,
+      clearButton: null
+    };
+  }
+
+  function submittedRequestKey(keyword) {
+    return `site-resource-request:${normalize(keyword).toLowerCase()}`;
+  }
+
+  function wasSubmitted(keyword) {
+    try {
+      return sessionStorage.getItem(submittedRequestKey(keyword)) === "1";
+    } catch {
+      return false;
+    }
+  }
+
+  function rememberSubmitted(keyword) {
+    try {
+      sessionStorage.setItem(submittedRequestKey(keyword), "1");
+    } catch {
+      // Session storage is optional.
+    }
+  }
+
+  async function submitInlineResourceRequest(button, keyword, hint) {
+    if (!keyword || button.disabled) return;
+
+    button.disabled = true;
+    button.textContent = "正在提交…";
+    if (hint) hint.textContent = "";
+
+    try {
+      const payload = await fetchJson("/api/site-ops/request", {
+        method: "POST",
+        body: JSON.stringify({ keyword })
+      });
+
+      rememberSubmitted(keyword);
+      button.textContent = "✓ 已提交";
+      button.title = payload.message || "后台已收到资源需求";
+
+      if (hint) {
+        hint.textContent = "后台已收到该资源需求";
+        hint.style.color = "#35a46a";
+      }
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = "重新提交";
+
+      if (hint) {
+        hint.textContent = error.message || "提交失败，请稍后重试";
+        hint.style.color = "#d84e4e";
+      }
+    }
   }
 
   function showNoResultCard(keyword) {
-    removeNoResultCard();
-    if (!normalize(keyword) || visibleResourceCount() > 0) return;
+    // Remove the old separate request form if an older script rendered it.
+    document.getElementById(NO_RESULT_ID)?.remove();
+
+    const value = currentSearchKeyword(keyword);
+    if (!value || visibleResourceCount() > 0) {
+      removeNoResultCard();
+      return;
+    }
+
     if (publicOps.settings?.requestEnabled === false) return;
 
-    const card = document.createElement("section");
-    card.id = NO_RESULT_ID;
-    card.innerHTML = `
-      <div class="site-no-result-icon">⌕</div>
-      <h3>没有找到“${escapeHtml(keyword)}”</h3>
-      <p>可以缩短关键词重新搜索，也可以提交资源需求。后台会自动统计需求次数。</p>
-      <div class="site-no-result-actions">
-        <input type="text" value="${escapeHtml(keyword)}" maxlength="120" data-site-request-input />
-        <button type="button" data-site-request-submit>提交资源需求</button>
-      </div>
-      <div class="site-request-message" data-site-request-message></div>
-    `;
+    const native = nativeNoResultCard();
+    if (!native?.card) return;
 
-    noResultHost().appendChild(card);
+    const existing = native.card.querySelector("[data-site-inline-request]");
+    if (existing) {
+      existing.dataset.requestKeyword = value;
+      return;
+    }
 
-    card.querySelector("[data-site-request-submit]")?.addEventListener("click", async () => {
-      const button = card.querySelector("[data-site-request-submit]");
-      const input = card.querySelector("[data-site-request-input]");
-      const message = card.querySelector("[data-site-request-message]");
-      const value = normalize(input?.value);
-      if (!value) return;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "site-inline-request-button";
+    button.dataset.siteInlineRequest = "true";
+    button.dataset.requestKeyword = value;
+    button.textContent = wasSubmitted(value)
+      ? "✓ 已提交"
+      : "提交资源需求";
+    button.disabled = wasSubmitted(value);
 
-      button.disabled = true;
-      button.textContent = "正在提交…";
-      try {
-        const payload = await fetchJson("/api/site-ops/request", {
-          method: "POST",
-          body: JSON.stringify({ keyword: value })
-        });
-        message.textContent = payload.message || "需求已提交";
-        button.textContent = "已提交";
-      } catch (error) {
-        message.style.color = "#d84e4e";
-        message.textContent = error.message;
-        button.disabled = false;
-        button.textContent = "重新提交";
+    const hint = document.createElement("div");
+    hint.className = "site-inline-request-hint";
+    hint.dataset.siteInlineRequestHint = "true";
+    hint.textContent = wasSubmitted(value)
+      ? "后台已收到该资源需求"
+      : "";
+
+    let actionHost = null;
+
+    if (native.clearButton) {
+      const parent = native.clearButton.parentElement;
+
+      if (
+        parent
+        && parent.children.length <= 3
+        && !parent.closest("[data-site-inline-request-wrapper]")
+      ) {
+        actionHost = parent;
+        actionHost.classList.add("site-native-no-result-actions");
+      } else {
+        actionHost = document.createElement("div");
+        actionHost.className = "site-native-no-result-actions";
+        actionHost.dataset.siteInlineRequestWrapper = "true";
+
+        native.clearButton.dataset.siteOriginalClear = "true";
+        native.clearButton.parentNode?.insertBefore(actionHost, native.clearButton);
+        actionHost.appendChild(native.clearButton);
       }
+    } else {
+      actionHost = document.createElement("div");
+      actionHost.className = "site-native-no-result-actions";
+      actionHost.dataset.siteInlineRequestWrapper = "true";
+      native.card.appendChild(actionHost);
+    }
+
+    actionHost.appendChild(button);
+
+    if (actionHost.parentElement) {
+      actionHost.insertAdjacentElement("afterend", hint);
+    } else {
+      native.card.appendChild(hint);
+    }
+
+    button.addEventListener("click", () => {
+      const requestKeyword = currentSearchKeyword(
+        button.dataset.requestKeyword || value
+      );
+
+      submitInlineResourceRequest(button, requestKeyword, hint);
     });
   }
 
@@ -827,6 +1045,11 @@
       if (["默认", "最热", "评分", "年份"].includes(text)) {
         sendEvent("sort", { key: text });
         setTimeout(removeNoResultCard, 80);
+        setTimeout(schedulePublicRender, 180);
+      }
+
+      if (/清除筛选|清空筛选/.test(text)) {
+        setTimeout(removeNoResultCard, 30);
       }
 
       if (button.matches(".qr-promo-floating") || button.closest(".qr-promo-floating")) {
