@@ -372,27 +372,37 @@
         left: 14px;
         bottom: 82px;
         display: grid;
-        grid-template-columns: 44px minmax(0, 1fr) 18px;
+        grid-template-columns: 46px minmax(0, 1fr) 18px;
         align-items: center;
         gap: 10px;
-        min-width: 158px;
-        min-height: 62px;
+        min-width: 166px;
+        min-height: 64px;
         box-sizing: border-box;
-        border: 1px solid rgba(255, 126, 91, .14);
-        border-radius: 18px;
+        border: 1px solid rgba(255, 118, 91, .18);
+        border-radius: 19px;
         padding: 8px 10px 8px 8px;
         color: #2f3540;
-        background: rgba(255, 255, 255, .96);
+        background:
+          linear-gradient(135deg, rgba(255,255,255,.98), rgba(255,248,244,.98));
         box-shadow:
-          0 12px 30px rgba(44, 54, 72, .16),
-          0 2px 8px rgba(255, 126, 91, .10);
-        backdrop-filter: blur(10px);
+          0 15px 34px rgba(42, 52, 70, .17),
+          0 4px 12px rgba(255, 118, 91, .12);
+        backdrop-filter: blur(12px);
         cursor: pointer;
         text-align: left;
         transition:
-          transform .18s ease,
-          box-shadow .18s ease,
-          border-color .18s ease;
+          transform .2s ease,
+          box-shadow .2s ease,
+          border-color .2s ease;
+      }
+      .qr-promo-floating::before {
+        content: "";
+        position: absolute;
+        inset: -1px;
+        z-index: -1;
+        border-radius: inherit;
+        background: linear-gradient(130deg, rgba(255,120,91,.20), transparent 48%, rgba(73,201,145,.12));
+        pointer-events: none;
       }
       .qr-promo-floating::after {
         content: "›";
@@ -400,17 +410,17 @@
         width: 18px;
         height: 18px;
         place-items: center;
-        color: #ff7b5f;
-        font-size: 22px;
-        font-weight: 500;
+        color: #ff765d;
+        font-size: 23px;
+        font-weight: 700;
         line-height: 1;
       }
       .qr-promo-floating:hover {
-        transform: translateY(-2px);
-        border-color: rgba(255, 126, 91, .28);
+        transform: translateY(-3px);
+        border-color: rgba(255, 118, 91, .32);
         box-shadow:
-          0 16px 36px rgba(44, 54, 72, .20),
-          0 4px 12px rgba(255, 126, 91, .14);
+          0 19px 40px rgba(42, 52, 70, .20),
+          0 6px 15px rgba(255, 118, 91, .15);
       }
       .qr-promo-floating:active {
         transform: scale(.98);
@@ -418,13 +428,13 @@
       .qr-promo-floating-icon {
         position: relative;
         display: grid;
-        width: 44px;
-        height: 44px;
+        width: 46px;
+        height: 46px;
         place-items: center;
-        border-radius: 14px;
+        border-radius: 15px;
         color: #fff;
-        background: linear-gradient(145deg, #ff6f5e, #ff9d67);
-        box-shadow: 0 7px 16px rgba(255, 115, 91, .26);
+        background: linear-gradient(145deg, #ff6d59, #ffa26f);
+        box-shadow: 0 8px 18px rgba(255, 112, 88, .28);
         font-size: 21px;
         line-height: 1;
       }
@@ -433,12 +443,12 @@
         position: absolute;
         top: 4px;
         right: 4px;
-        width: 7px;
-        height: 7px;
+        width: 8px;
+        height: 8px;
         border: 2px solid #fff;
         border-radius: 50%;
         background: #35c96f;
-        box-shadow: 0 0 0 2px rgba(53, 201, 111, .14);
+        box-shadow: 0 0 0 3px rgba(53, 201, 111, .13);
       }
       .qr-promo-floating-copy {
         min-width: 0;
@@ -446,9 +456,9 @@
       .qr-promo-floating-copy strong {
         display: block;
         overflow: hidden;
-        color: #2d3440;
+        color: #29313d;
         font-size: 14px;
-        font-weight: 800;
+        font-weight: 900;
         line-height: 1.35;
         letter-spacing: .1px;
         text-overflow: ellipsis;
@@ -458,13 +468,14 @@
         display: block;
         overflow: hidden;
         margin-top: 3px;
-        color: #ff765d;
+        color: #ff7259;
         font-size: 10px;
-        font-weight: 600;
+        font-weight: 700;
         line-height: 1.3;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
+
       .qr-promo-overlay {
         position: fixed;
         inset: 0;
@@ -472,74 +483,274 @@
         display: grid;
         place-items: center;
         padding: 18px;
-        background: rgba(25, 30, 40, .58);
-        backdrop-filter: blur(4px);
+        background:
+          radial-gradient(circle at 50% 24%, rgba(255,130,92,.16), transparent 32%),
+          rgba(20, 27, 38, .66);
+        backdrop-filter: blur(7px);
+        animation: qrPromoFadeIn .2s ease both;
       }
-      .qr-promo-overlay[hidden] { display: none !important; }
+      .qr-promo-overlay[hidden] {
+        display: none !important;
+      }
+
       .qr-promo-dialog {
-        width: min(100%, 360px);
-        max-height: min(90vh, 720px);
+        position: relative;
+        width: min(100%, 382px);
+        max-height: min(92vh, 760px);
         overflow-y: auto;
-        border-radius: 18px;
-        padding: 22px 20px 16px;
-        background: #fff;
-        box-shadow: 0 26px 80px rgba(18, 24, 36, .28);
+        box-sizing: border-box;
+        border: 1px solid rgba(255,255,255,.88);
+        border-radius: 26px;
+        padding: 0 20px 18px;
+        background:
+          linear-gradient(180deg, #fff8f4 0, #ffffff 150px, #ffffff 100%);
+        box-shadow:
+          0 30px 90px rgba(12, 19, 32, .34),
+          inset 0 1px 0 rgba(255,255,255,.9);
         text-align: center;
+        animation: qrPromoPopIn .24s cubic-bezier(.2,.8,.25,1) both;
       }
+      .qr-promo-dialog::before {
+        content: "";
+        position: absolute;
+        top: -90px;
+        left: 50%;
+        width: 260px;
+        height: 180px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(255,128,92,.22), transparent 68%);
+        transform: translateX(-50%);
+        pointer-events: none;
+      }
+
+      .qr-promo-topbar {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 52px;
+      }
+      .qr-promo-top-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid rgba(255,118,91,.14);
+        border-radius: 999px;
+        padding: 5px 10px;
+        color: #ff6e55;
+        background: rgba(255,255,255,.78);
+        font-size: 10px;
+        font-weight: 800;
+      }
+      .qr-promo-top-badge::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #36c977;
+        box-shadow: 0 0 0 4px rgba(54,201,119,.12);
+      }
+      .qr-promo-close-icon {
+        display: grid;
+        width: 32px;
+        height: 32px;
+        place-items: center;
+        border: 0;
+        border-radius: 50%;
+        color: #828995;
+        background: rgba(236,239,242,.88);
+        font-size: 20px;
+        line-height: 1;
+        cursor: pointer;
+      }
+
+      .qr-promo-hero-icon {
+        position: relative;
+        display: grid;
+        width: 68px;
+        height: 68px;
+        margin: 0 auto 11px;
+        place-items: center;
+        border-radius: 22px;
+        color: #fff;
+        background: linear-gradient(145deg, #ff7059, #ffad76);
+        box-shadow:
+          0 13px 26px rgba(255,112,89,.26),
+          inset 0 1px 0 rgba(255,255,255,.35);
+        font-size: 29px;
+      }
+      .qr-promo-hero-icon::after {
+        content: "";
+        position: absolute;
+        top: 7px;
+        right: 7px;
+        width: 9px;
+        height: 9px;
+        border: 2px solid #fff;
+        border-radius: 50%;
+        background: #38ca79;
+      }
+
       .qr-promo-dialog h2 {
+        position: relative;
         margin: 0;
-        color: #2f3540;
-        font-size: 19px;
-        line-height: 1.45;
+        color: #29313d;
+        font-size: 22px;
+        font-weight: 900;
+        line-height: 1.4;
+        letter-spacing: -.2px;
       }
-      .qr-promo-mini {
-        display: block;
-        width: 58px;
-        height: 58px;
-        margin: 28px auto 8px;
-        object-fit: contain;
-        border-radius: 8px;
-        background: #fff;
+      .qr-promo-subtitle {
+        margin: 7px 0 0;
+        color: #8b929d;
+        font-size: 12px;
+        line-height: 1.65;
       }
-      .qr-promo-group {
-        margin: 0;
-        color: #333944;
-        font-size: 13px;
+
+      .qr-promo-benefits {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 7px;
+        margin: 16px 0 0;
+      }
+      .qr-promo-benefit {
+        display: grid;
+        min-height: 48px;
+        place-items: center;
+        border: 1px solid rgba(98,114,133,.10);
+        border-radius: 12px;
+        padding: 6px 4px;
+        color: #56616f;
+        background: rgba(247,249,250,.90);
+        font-size: 10px;
         font-weight: 700;
-        line-height: 1.5;
+        line-height: 1.35;
+      }
+      .qr-promo-benefit span {
+        display: block;
+        margin-bottom: 2px;
+        font-size: 15px;
+      }
+
+      .qr-promo-qr-card {
+        position: relative;
+        margin-top: 16px;
+        border: 1px solid rgba(255,120,91,.15);
+        border-radius: 22px;
+        padding: 15px 14px 13px;
+        background:
+          linear-gradient(145deg, rgba(255,249,246,.98), rgba(248,252,252,.98));
+        box-shadow:
+          inset 0 1px 0 #fff,
+          0 10px 25px rgba(57,68,83,.08);
+      }
+      .qr-promo-qr-card::before,
+      .qr-promo-qr-card::after {
+        content: "";
+        position: absolute;
+        width: 20px;
+        height: 20px;
+        border-color: #ff856c;
+        pointer-events: none;
+      }
+      .qr-promo-qr-card::before {
+        top: 11px;
+        left: 11px;
+        border-top: 3px solid #ff856c;
+        border-left: 3px solid #ff856c;
+        border-radius: 5px 0 0;
+      }
+      .qr-promo-qr-card::after {
+        right: 11px;
+        bottom: 11px;
+        border-right: 3px solid #62c7c7;
+        border-bottom: 3px solid #62c7c7;
+        border-radius: 0 0 5px;
+      }
+
+      .qr-promo-group {
+        margin: 0 0 10px;
+        color: #343c49;
+        font-size: 14px;
+        font-weight: 900;
+        line-height: 1.45;
       }
       .qr-promo-large {
         display: block;
-        width: min(100%, 245px);
+        width: min(100%, 232px);
         aspect-ratio: 1;
-        margin: 16px auto 0;
+        margin: 0 auto;
+        border: 10px solid #fff;
+        border-radius: 18px;
         object-fit: contain;
         background: #fff;
+        box-shadow: 0 8px 22px rgba(48,60,76,.12);
       }
-      .qr-promo-description {
-        margin: 12px 0 0;
-        color: #b0b4bb;
+      .qr-promo-scan-tip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 11px;
+        border-radius: 999px;
+        padding: 5px 10px;
+        color: #ff7259;
+        background: #fff1eb;
         font-size: 10px;
-        line-height: 1.6;
+        font-weight: 800;
       }
+
+      .qr-promo-description {
+        margin: 13px 2px 0;
+        color: #a0a6af;
+        font-size: 10px;
+        line-height: 1.7;
+      }
+
       .qr-promo-close {
         width: 100%;
-        min-height: 47px;
-        margin-top: 24px;
+        min-height: 48px;
+        margin-top: 17px;
         border: 0;
-        border-radius: 11px;
-        color: #626872;
-        background: #eef0f3;
+        border-radius: 14px;
+        color: #fff;
+        background: linear-gradient(135deg, #ff7059, #ff9668);
+        box-shadow: 0 10px 22px rgba(255,112,89,.22);
         font-size: 15px;
-        font-weight: 800;
+        font-weight: 900;
         cursor: pointer;
+        transition: transform .16s ease, box-shadow .16s ease;
       }
-      body.qr-promo-open { overflow: hidden; }
+      .qr-promo-close:hover {
+        box-shadow: 0 13px 26px rgba(255,112,89,.28);
+      }
+      .qr-promo-close:active {
+        transform: scale(.985);
+      }
+
+      body.qr-promo-open {
+        overflow: hidden;
+      }
+
+      @keyframes qrPromoFadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes qrPromoPopIn {
+        from {
+          opacity: 0;
+          transform: translateY(14px) scale(.97);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+
       @media (max-width: 480px) {
         .qr-promo-floating {
           right: auto;
           bottom: 78px;
-          min-width: 148px;
+          min-width: 154px;
           max-width: calc(100vw - 28px);
         }
         .qr-promo-overlay {
@@ -548,10 +759,22 @@
         }
         .qr-promo-dialog {
           width: 100%;
-          max-height: 92vh;
-          box-sizing: border-box;
-          border-radius: 18px 18px 0 0;
-          padding-bottom: calc(16px + env(safe-area-inset-bottom));
+          max-height: 94vh;
+          border-radius: 25px 25px 0 0;
+          padding-bottom: calc(17px + env(safe-area-inset-bottom));
+        }
+        .qr-promo-benefits {
+          gap: 6px;
+        }
+        .qr-promo-large {
+          width: min(100%, 220px);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .qr-promo-overlay,
+        .qr-promo-dialog {
+          animation: none;
         }
       }
     `;
@@ -577,7 +800,7 @@
 
     overlay.hidden = false;
     document.body.classList.add("qr-promo-open");
-    overlay.querySelector(".qr-promo-close")?.focus();
+    overlay.querySelector(".qr-promo-close-icon")?.focus();
   }
 
   function createModal(values) {
@@ -592,13 +815,43 @@
     dialog.setAttribute("aria-modal", "true");
     dialog.setAttribute("aria-label", values.title);
 
+    const topbar = document.createElement("div");
+    topbar.className = "qr-promo-topbar";
+
+    const topBadge = document.createElement("span");
+    topBadge.className = "qr-promo-top-badge";
+    topBadge.textContent = "群聊入口正常";
+
+    const iconCloseButton = document.createElement("button");
+    iconCloseButton.className = "qr-promo-close-icon";
+    iconCloseButton.type = "button";
+    iconCloseButton.setAttribute("aria-label", "关闭弹窗");
+    iconCloseButton.textContent = "×";
+
+    topbar.append(topBadge, iconCloseButton);
+
+    const heroIcon = document.createElement("div");
+    heroIcon.className = "qr-promo-hero-icon";
+    heroIcon.setAttribute("aria-hidden", "true");
+    heroIcon.textContent = "👥";
+
     const title = document.createElement("h2");
     title.textContent = values.title;
 
-    const miniImage = document.createElement("img");
-    miniImage.className = "qr-promo-mini";
-    miniImage.src = values.image;
-    miniImage.alt = "";
+    const subtitle = document.createElement("p");
+    subtitle.className = "qr-promo-subtitle";
+    subtitle.textContent = "加入群聊，及时查看资源更新与失效提醒";
+
+    const benefits = document.createElement("div");
+    benefits.className = "qr-promo-benefits";
+    benefits.innerHTML = `
+      <div class="qr-promo-benefit"><span>🔔</span>更新提醒</div>
+      <div class="qr-promo-benefit"><span>🛡️</span>防止失联</div>
+      <div class="qr-promo-benefit"><span>💬</span>失效反馈</div>
+    `;
+
+    const qrCard = document.createElement("div");
+    qrCard.className = "qr-promo-qr-card";
 
     const groupName = document.createElement("p");
     groupName.className = "qr-promo-group";
@@ -609,6 +862,12 @@
     largeImage.src = values.image;
     largeImage.alt = "群二维码";
 
+    const scanTip = document.createElement("div");
+    scanTip.className = "qr-promo-scan-tip";
+    scanTip.textContent = "📱 长按识别或截图扫码";
+
+    qrCard.append(groupName, largeImage, scanTip);
+
     const description = document.createElement("p");
     description.className = "qr-promo-description";
     description.textContent = values.description;
@@ -616,13 +875,25 @@
     const closeButton = document.createElement("button");
     closeButton.className = "qr-promo-close";
     closeButton.type = "button";
-    closeButton.textContent = "关闭";
+    closeButton.textContent = "我知道了";
 
-    dialog.append(title, miniImage, groupName, largeImage, description, closeButton);
+    dialog.append(
+      topbar,
+      heroIcon,
+      title,
+      subtitle,
+      benefits,
+      qrCard,
+      description,
+      closeButton
+    );
+
     overlay.appendChild(dialog);
     document.body.appendChild(overlay);
 
     closeButton.addEventListener("click", closeModal);
+    iconCloseButton.addEventListener("click", closeModal);
+
     overlay.addEventListener("click", (event) => {
       if (event.target === overlay) closeModal();
     });
