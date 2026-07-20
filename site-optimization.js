@@ -467,20 +467,13 @@
   }
 
   function cardForTarget(target) {
-    return target.closest(
-      "button,article,li,.resource-card,.resource-item,.recent-update-item,.search-result-item"
-    ) || target;
-  }
+    if (!target) return null;
 
-  function smallestLeafContaining(card, pattern) {
-    return [...card.querySelectorAll("span,small,em,strong,p,div,h1,h2,h3,h4")]
-      .filter((element) => pattern.test(normalize(element.textContent)))
-      .filter((element) => ![...element.children].some(
-        (child) => pattern.test(normalize(child.textContent))
-      ))
-      .sort((left, right) => (
-        normalize(left.textContent).length - normalize(right.textContent).length
-      ))[0] || null;
+    return target.closest(
+      "button[data-resource-id],article[data-resource-id],li[data-resource-id],"
+      + ".resource-card,.resource-item,.recent-update-item,.search-result-item,"
+      + "button,article,li"
+    ) || target;
   }
 
   function statusCode(entry) {
@@ -496,136 +489,134 @@
     ) || null;
   }
 
-  function titleLeafForResource(card, resource) {
-    if (!card || !resource) return null;
-
-    const wanted = normalize(resource.title);
+  function exactResourceTitleElement(resource) {
+    const wanted = normalize(resource?.title);
     if (!wanted) return null;
 
-    const leaves = [...card.querySelectorAll(
-      "h1,h2,h3,h4,strong,b,p,span,div"
-    )].filter((element) => (
-      ![...element.children].some((child) => (
-        normalize(child.textContent) === normalize(element.textContent)
-      ))
-    ));
+    const candidates = [
+      ...document.querySelectorAll("h1,h2,h3,h4,strong,b,p,span,div")
+    ].filter((element) => {
+      if (element.closest("#adminView")) return false;
+      if (element.closest("#allCloudLinksModal")) return false;
+      if (element.closest("#qrPromoModal")) return false;
 
-    return leaves.find((element) => normalize(element.textContent) === wanted)
-      || leaves.find((element) => {
-        const value = normalize(element.textContent);
-        return value.startsWith(wanted) || wanted.startsWith(value);
-      })
-      || null;
+      const value = normalize(element.textContent);
+      if (value !== wanted) return false;
+
+      return ![...element.children].some(
+        (child) => normalize(child.textContent) === wanted
+      );
+    });
+
+    return candidates[0] || null;
   }
 
-  function resourceFromCard(card) {
-    if (!card) return null;
-
-    const idNode = card.matches?.("[data-resource-id]")
-      ? card
-      : card.querySelector?.("[data-resource-id]");
-
-    const resourceId = normalize(
-      idNode?.dataset?.resourceId
-      || card.dataset?.resourceId
-      || card.dataset?.siteResourceId
-    );
-
-    const byId = resourceById(resourceId);
-    if (byId) return byId;
-
-    const cardText = normalize(card.textContent);
-
-    return resources()
-      .filter((resource) => normalize(resource.title))
-      .sort((left, right) => (
-        normalize(right.title).length - normalize(left.title).length
-      ))
-      .find((resource) => {
-        const title = normalize(resource.title);
-        return cardText.includes(title);
-      }) || null;
-  }
-
-  function statusHost(card, resource) {
-    const known = card.querySelector(
-      ".recent-update-meta,[class*='resource-meta'],[class*='item-meta'],[class*='card-meta']"
-    );
-    if (known) return known;
-
-    const heat = smallestLeafContaining(card, /🔥/);
-    if (heat?.parentElement) return heat.parentElement;
-
-    const tag = smallestLeafContaining(
-      card,
-      /网盘|电影|短剧|动漫|影视|小说|学习资料/
-    );
-    if (tag?.parentElement) return tag.parentElement;
-
-    const titleLeaf = titleLeafForResource(card, resource);
-    if (!titleLeaf) return null;
-
-    let fallback = card.querySelector("[data-site-status-fallback-host]");
-
-    if (!fallback) {
-      fallback = document.createElement("span");
-      fallback.dataset.siteStatusFallbackHost = "true";
-      fallback.style.display = "inline-flex";
-      fallback.style.alignItems = "center";
-      fallback.style.flexWrap = "wrap";
-      fallback.style.gap = "5px";
-      fallback.style.marginTop = "5px";
-
-      const titleParent = titleLeaf.parentElement;
-
-      if (titleParent && titleParent !== card) {
-        titleParent.insertAdjacentElement("beforeend", fallback);
-      } else {
-        titleLeaf.insertAdjacentElement("afterend", fallback);
-      }
-    }
-
-    return fallback;
-  }
-
-  function candidateResourceCards() {
-    const cards = new Set();
+  function canonicalStatusEntries() {
+    const entries = [];
+    const seenCards = new Set();
+    const explicitResources = new Set();
 
     document.querySelectorAll("[data-resource-id]").forEach((target) => {
+      const resourceId = normalize(target.dataset.resourceId);
+      const resource = resourceById(resourceId);
+      if (!resource) return;
+
       const card = cardForTarget(target);
-      if (card) cards.add(card);
+      if (!card || !card.parentElement) return;
+      if (card.closest("#adminView")) return;
+      if (card.closest("#allCloudLinksModal")) return;
+      if (card.closest("#qrPromoModal")) return;
+
+      const duplicate = entries.some((entry) => (
+        String(entry.resource.id) === String(resource.id)
+        && (
+          entry.card === card
+          || entry.card.contains(card)
+          || card.contains(entry.card)
+        )
+      ));
+
+      if (duplicate) return;
+
+      seenCards.add(card);
+      explicitResources.add(String(resource.id));
+      entries.push({ card, resource });
     });
 
-    document.querySelectorAll(
-      ".resource-card,.resource-item,.recent-update-item,.search-result-item,button,article,li"
-    ).forEach((candidate) => {
-      if (!candidate.parentElement) return;
-      if (candidate.closest("#adminView")) return;
-      if (candidate.closest("#allCloudLinksModal")) return;
-      if (candidate.closest("#qrPromoModal")) return;
+    // Fallback only for cards that genuinely have no resource-id marker.
+    resources().forEach((resource) => {
+      const titleElement = exactResourceTitleElement(resource);
+      if (!titleElement) return;
 
-      const textValue = normalize(candidate.textContent);
-      if (!textValue || textValue.length > 500) return;
+      const card = cardForTarget(titleElement);
+      if (!card || !card.parentElement || seenCards.has(card)) return;
 
-      const matched = resources().some((resource) => {
-        const title = normalize(resource.title);
-        return title && textValue.includes(title);
-      });
+      const overlaps = entries.some((entry) => (
+        String(entry.resource.id) === String(resource.id)
+        && (
+          entry.card === card
+          || entry.card.contains(card)
+          || card.contains(entry.card)
+        )
+      ));
 
-      if (matched) cards.add(candidate);
+      if (overlaps) return;
+
+      seenCards.add(card);
+      entries.push({ card, resource });
     });
 
-    return [...cards];
+    return entries;
+  }
+
+  function ensureStatusBadge(card, resource, info) {
+    card.classList.add("site-status-card-anchor");
+
+    const badges = [
+      ...card.querySelectorAll(
+        `[data-site-resource-status][data-site-resource-id="${String(resource.id)}"]`
+      )
+    ];
+
+    let badge = badges.shift() || null;
+    badges.forEach((duplicate) => duplicate.remove());
+
+    if (!info) {
+      badge?.remove();
+      card.classList.remove("site-status-card-anchor");
+      return null;
+    }
+
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.dataset.siteResourceStatus = "true";
+      badge.dataset.siteResourceId = String(resource.id);
+      card.appendChild(badge);
+    } else if (badge.parentElement !== card) {
+      card.appendChild(badge);
+    }
+
+    const nextClassName = `site-resource-status ${info.className}`;
+    const nextText = `${info.icon} ${info.label}`;
+
+    if (badge.className !== nextClassName) {
+      badge.className = nextClassName;
+    }
+
+    if (badge.textContent !== nextText) {
+      badge.textContent = nextText;
+    }
+
+    badge.title = `资源状态：${info.label}`;
+    return badge;
   }
 
   function applyStatusBadges() {
     const statuses = publicOps?.statuses || {};
-    const renderToken = String(Date.now());
+    const entries = canonicalStatusEntries();
+    const validBadges = new Set();
 
-    candidateResourceCards().forEach((card) => {
-      const resource = resourceFromCard(card);
-      if (!resource) return;
-
+    entries.forEach(({ card, resource }) => {
       const code = statusCode(
         statuses[String(resource.id)]
         || statuses[resource.id]
@@ -633,36 +624,22 @@
       );
 
       const info = STATUS_INFO[code];
-      let badge = card.querySelector(
-        `[data-site-resource-status][data-site-resource-id="${String(resource.id)}"]`
-      );
+      const badge = ensureStatusBadge(card, resource, info);
 
-      if (!info) {
-        badge?.remove();
-        return;
-      }
-
-      const host = statusHost(card, resource);
-      if (!host) return;
-
-      if (!badge) {
-        badge = document.createElement("span");
-        badge.dataset.siteResourceStatus = "true";
-        badge.dataset.siteResourceId = String(resource.id);
-        host.appendChild(badge);
-      } else if (badge.parentElement !== host) {
-        host.appendChild(badge);
-      }
-
-      badge.className = `site-resource-status ${info.className}`;
-      badge.dataset.siteStatusRender = renderToken;
-      badge.textContent = `${info.icon} ${info.label}`;
-      badge.title = `资源状态：${info.label}`;
+      if (badge) validBadges.add(badge);
     });
 
     document.querySelectorAll("[data-site-resource-status]").forEach((badge) => {
-      if (badge.dataset.siteStatusRender !== renderToken) {
+      if (!validBadges.has(badge)) {
+        const parent = badge.parentElement;
         badge.remove();
+
+        if (
+          parent
+          && !parent.querySelector("[data-site-resource-status]")
+        ) {
+          parent.classList.remove("site-status-card-anchor");
+        }
       }
     });
   }
@@ -1538,6 +1515,31 @@
     }, 60000);
 
     const observer = new MutationObserver((mutations) => {
+      const onlyStatusChanges = mutations.every((mutation) => {
+        const target = mutation.target?.nodeType === Node.ELEMENT_NODE
+          ? mutation.target
+          : mutation.target?.parentElement;
+
+        const addedOnlyStatus = [...mutation.addedNodes].every((node) => (
+          node.nodeType !== Node.ELEMENT_NODE
+          || node.matches?.("[data-site-resource-status]")
+          || node.closest?.("[data-site-resource-status]")
+        ));
+
+        const removedOnlyStatus = [...mutation.removedNodes].every((node) => (
+          node.nodeType !== Node.ELEMENT_NODE
+          || node.matches?.("[data-site-resource-status]")
+          || node.closest?.("[data-site-resource-status]")
+        ));
+
+        return Boolean(
+          target?.closest?.("[data-site-resource-status]")
+          || (addedOnlyStatus && removedOnlyStatus)
+        );
+      });
+
+      if (onlyStatusChanges) return;
+
       const modalVisibilityChanged = mutations.some((mutation) => (
         mutation.type === "attributes"
         && mutation.target?.id === "allCloudLinksModal"

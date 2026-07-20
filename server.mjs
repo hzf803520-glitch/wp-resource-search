@@ -654,8 +654,25 @@ function normalizeConfig(input, previous = {}) {
 
     const previouslyTracked = previousResource?.updatedTracked === true;
 
+    const requestedSiteStatus = cleanText(resource.siteStatus, 24);
+    const previousSiteStatus = cleanText(previousResource?.siteStatus, 24);
+    const allowedSiteStatuses = new Set([
+      "normal",
+      "updating",
+      "broken",
+      "offline"
+    ]);
+
     return {
       ...normalizedResource,
+
+      // Preserve the independently configured front-end resource status when
+      // the normal resource editor is saved.
+      siteStatus: allowedSiteStatuses.has(requestedSiteStatus)
+        ? requestedSiteStatus
+        : allowedSiteStatuses.has(previousSiteStatus)
+          ? previousSiteStatus
+          : "",
 
       // Only an actual change to this resource updates its date.
       // Never fall back to the global config update time.
@@ -705,6 +722,32 @@ async function saveConfig(nextConfig) {
   await rename(temporaryPath, CONFIG_PATH);
   configCache = structuredClone(normalized);
   return structuredClone(normalized);
+}
+
+async function persistConfigSnapshot(nextConfig) {
+  const snapshot = structuredClone(nextConfig);
+
+  if (storageMode === "postgres") {
+    await persistDatabaseState("config", snapshot);
+    configCache = structuredClone(snapshot);
+    return structuredClone(snapshot);
+  }
+
+  const temporaryPath = path.join(
+    DATA_DIR,
+    `config.${randomBytes(5).toString("hex")}.tmp`
+  );
+
+  await copyFile(CONFIG_PATH, BACKUP_PATH);
+  await writeFile(
+    temporaryPath,
+    JSON.stringify(snapshot, null, 2) + "\n",
+    "utf8"
+  );
+  await rename(temporaryPath, CONFIG_PATH);
+
+  configCache = structuredClone(snapshot);
+  return structuredClone(snapshot);
 }
 
 function mergeAuthorizedConfig(input, current, session) {
@@ -1023,7 +1066,9 @@ async function handleApi(req, res, url) {
       ).map((resource) => ({
         ...resource,
         siteStatus: cleanText(
-          siteOpsStore.statuses?.[String(resource.id)]?.status || "",
+          siteOpsStore.statuses?.[String(resource.id)]?.status
+            || resource.siteStatus
+            || "",
           24
         )
       }))
@@ -1113,8 +1158,36 @@ async function handleApi(req, res, url) {
     }
 
     siteOpsStore.statuses = nextStatuses;
+
+    const nextConfig = structuredClone(configCache);
+    const savedAt = new Date().toISOString();
+
+    nextConfig.meta = {
+      ...(nextConfig.meta || {}),
+      version: Math.max(1, Number(nextConfig.meta?.version) || 1) + 1,
+      updatedAt: savedAt
+    };
+
+    nextConfig.resources = (
+      Array.isArray(nextConfig.resources)
+        ? nextConfig.resources
+        : []
+    ).map((resource) => ({
+      ...resource,
+      siteStatus: cleanText(
+        nextStatuses[String(resource.id)]?.status || "",
+        24
+      )
+    }));
+
+    await persistConfigSnapshot(nextConfig);
     await queueSiteOpsSave();
-    return json(res, 200, { ok: true, statuses: siteOpsStore.statuses, message: "资源状态已保存" }, securityHeaders());
+
+    return json(res, 200, {
+      ok: true,
+      statuses: siteOpsStore.statuses,
+      message: "资源状态已保存"
+    }, securityHeaders());
   }
 
   if (req.method === "PUT" && url.pathname === "/api/admin/site-ops/item") {
@@ -1281,8 +1354,8 @@ async function serveStatic(req, res, url) {
       const qrPromoScript = '<script src="/qr-promo-config.js?v=20260719-1"></script>';
       const recentUpdatesScript = '<script src="/recent-updates-config.js?v=20260720-3"></script>';
       const yearConfigScript = '<script src="/year-config.js?v=20260720-1"></script>';
-      const siteOptimizationScript = '<script src="/site-optimization.js?v=20260720-5"></script>';
-      const siteThemeStyle = '<link rel="stylesheet" href="/site-theme.css?v=20260720-3">';
+      const siteOptimizationScript = '<script src="/site-optimization.js?v=20260720-8"></script>';
+      const siteThemeStyle = '<link rel="stylesheet" href="/site-theme.css?v=20260720-6">';
       const scripts = [
         !html.includes("/notice-config.js") ? noticeScript : "",
         ["/index.html", "/search.html"].includes(pathname) && !html.includes("/all-links-modal.js")

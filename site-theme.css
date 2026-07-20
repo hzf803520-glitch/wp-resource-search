@@ -1243,3 +1243,67 @@ body {
     box-shadow: none;
   }
 }
+
+
+/* Resource status — one compact floating badge per card */
+.site-status-card-anchor {
+  position: relative !important;
+}
+
+.site-status-card-anchor > .site-resource-status {
+  position: absolute !important;
+  z-index: 4;
+  top: 8px;
+  right: 27px;
+  display: inline-flex !important;
+  width: auto !important;
+  max-width: 72px !important;
+  min-width: 0 !important;
+  min-height: 16px !important;
+  height: 16px !important;
+  align-items: center;
+  justify-content: center;
+  gap: 2px !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  padding: 0 5px !important;
+  overflow: hidden;
+  font-size: 8px !important;
+  font-weight: 800 !important;
+  line-height: 16px !important;
+  text-overflow: ellipsis;
+  white-space: nowrap !important;
+  pointer-events: none;
+  box-shadow: none !important;
+}
+
+.site-status-card-anchor > .site-resource-status.updating {
+  color: #d97300 !important;
+  background: #fff1d9 !important;
+}
+
+.site-status-card-anchor > .site-resource-status.normal {
+  color: #1f9158 !important;
+  background: #e8f8ef !important;
+}
+
+.site-status-card-anchor > .site-resource-status.broken {
+  color: #cf4d54 !important;
+  background: #ffeded !important;
+}
+
+.site-status-card-anchor > .site-resource-status.offline {
+  color: #727b87 !important;
+  background: #eceff2 !important;
+}
+
+@media (max-width: 359px) {
+  .site-status-card-anchor > .site-resource-status {
+    top: 6px;
+    right: 24px;
+    max-width: 62px !important;
+    padding-inline: 4px !important;
+    font-size: 7px !important;
+  }
+}
