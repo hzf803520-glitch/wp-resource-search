@@ -1268,6 +1268,7 @@ async function serveStatic(req, res, url) {
       const recentUpdatesScript = '<script src="/recent-updates-config.js?v=20260720-3"></script>';
       const yearConfigScript = '<script src="/year-config.js?v=20260720-1"></script>';
       const siteOptimizationScript = '<script src="/site-optimization.js?v=20260720-1"></script>';
+      const siteThemeStyle = '<link rel="stylesheet" href="/site-theme.css?v=20260720-1">';
       const scripts = [
         !html.includes("/notice-config.js") ? noticeScript : "",
         ["/index.html", "/search.html"].includes(pathname) && !html.includes("/all-links-modal.js")
@@ -1289,6 +1290,13 @@ async function serveStatic(req, res, url) {
           ? siteOptimizationScript
           : ""
       ].filter(Boolean).join("\n");
+
+      if (!html.includes("/site-theme.css")) {
+        html = /<\/head>/i.test(html)
+          ? html.replace(/<\/head>/i, `${siteThemeStyle}\n</head>`)
+          : `${siteThemeStyle}\n${html}`;
+      }
+
       if (scripts) {
         html = /<\/body>/i.test(html)
           ? html.replace(/<\/body>/i, `${scripts}\n</body>`)
