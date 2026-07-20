@@ -620,10 +620,7 @@
 
   function applyStatusBadges() {
     const statuses = publicOps?.statuses || {};
-
-    document.querySelectorAll("[data-site-resource-status]").forEach(
-      (badge) => badge.remove()
-    );
+    const renderToken = String(Date.now());
 
     candidateResourceCards().forEach((card) => {
       const resource = resourceFromCard(card);
@@ -632,38 +629,67 @@
       const code = statusCode(
         statuses[String(resource.id)]
         || statuses[resource.id]
+        || resource.siteStatus
       );
 
       const info = STATUS_INFO[code];
-      if (!info) return;
+      let badge = card.querySelector(
+        `[data-site-resource-status][data-site-resource-id="${String(resource.id)}"]`
+      );
+
+      if (!info) {
+        badge?.remove();
+        return;
+      }
 
       const host = statusHost(card, resource);
       if (!host) return;
 
-      const badge = document.createElement("span");
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.dataset.siteResourceStatus = "true";
+        badge.dataset.siteResourceId = String(resource.id);
+        host.appendChild(badge);
+      } else if (badge.parentElement !== host) {
+        host.appendChild(badge);
+      }
+
       badge.className = `site-resource-status ${info.className}`;
-      badge.dataset.siteResourceStatus = "true";
-      badge.dataset.siteResourceId = String(resource.id);
+      badge.dataset.siteStatusRender = renderToken;
       badge.textContent = `${info.icon} ${info.label}`;
       badge.title = `资源状态：${info.label}`;
+    });
 
-      host.appendChild(badge);
+    document.querySelectorAll("[data-site-resource-status]").forEach((badge) => {
+      if (badge.dataset.siteStatusRender !== renderToken) {
+        badge.remove();
+      }
     });
   }
 
   async function refreshPublicStatuses() {
-    try {
-      const latest = await fetchJson(
-        `/api/site-ops/public?_=${Date.now()}`
-      );
+    const [configResult, opsResult] = await Promise.allSettled([
+      fetchJson(`/api/config?_=${Date.now()}`),
+      fetchJson(`/api/site-ops/public?_=${Date.now()}`)
+    ]);
 
-      if (latest && typeof latest === "object") {
-        publicOps = latest;
-        applyStatusBadges();
-      }
-    } catch {
-      // Keep the last successfully loaded status data.
+    if (
+      configResult.status === "fulfilled"
+      && configResult.value
+      && Array.isArray(configResult.value.resources)
+    ) {
+      config = configResult.value;
     }
+
+    if (
+      opsResult.status === "fulfilled"
+      && opsResult.value
+      && typeof opsResult.value === "object"
+    ) {
+      publicOps = opsResult.value;
+    }
+
+    applyStatusBadges();
   }
 
   function schedulePublicRender() {
@@ -1459,16 +1485,31 @@
 
   async function initializePublic() {
     addStyles();
-    try {
-      const [configPayload, opsPayload] = await Promise.all([
-        fetchJson("/api/config"),
-        fetchJson("/api/site-ops/public")
-      ]);
-      config = configPayload;
-      publicOps = opsPayload;
-    } catch {
-      return;
+
+    const [configResult, opsResult] = await Promise.allSettled([
+      fetchJson(`/api/config?_=${Date.now()}`),
+      fetchJson(`/api/site-ops/public?_=${Date.now()}`)
+    ]);
+
+    if (
+      configResult.status === "fulfilled"
+      && configResult.value
+      && Array.isArray(configResult.value.resources)
+    ) {
+      config = configResult.value;
     }
+
+    if (
+      opsResult.status === "fulfilled"
+      && opsResult.value
+      && typeof opsResult.value === "object"
+    ) {
+      publicOps = opsResult.value;
+    }
+
+    // Search/status enhancement requires config, but a temporary operations
+    // endpoint failure must not stop the whole public module.
+    if (!config || !Array.isArray(config.resources)) return;
 
     installSearchSuggestions();
     installPublicTracking();
@@ -1487,6 +1528,14 @@
         refreshPublicStatuses();
       }
     });
+
+    // Refresh occasionally so a status saved in the admin appears without
+    // forcing the user to clear all browser data.
+    setInterval(() => {
+      if (document.visibilityState === "visible") {
+        refreshPublicStatuses();
+      }
+    }, 60000);
 
     const observer = new MutationObserver((mutations) => {
       const modalVisibilityChanged = mutations.some((mutation) => (

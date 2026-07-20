@@ -706,3 +706,540 @@ button:not([data-resource-id]):active {
     transition-duration: .01ms !important;
   }
 }
+
+
+/* ==========================================================
+   Full-system responsive adaptation
+   320px phones → tablets → desktop, including safe areas.
+   ========================================================== */
+
+html,
+body {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-left: env(safe-area-inset-left, 0);
+  padding-right: env(safe-area-inset-right, 0);
+}
+
+*,
+*::before,
+*::after {
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+:where(
+  .app-shell,
+  .home-shell,
+  .search-shell,
+  .page-shell,
+  .site-shell,
+  .mobile-shell,
+  .recent-updates-page-shell,
+  #adminView,
+  .content-area
+) {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Flexible media and long strings */
+:where(
+  .resource-card,
+  .resource-item,
+  .search-result-item,
+  .recent-update-item,
+  .all-links-card,
+  .qr-promo-dialog,
+  #adminView
+) img {
+  height: auto;
+  object-fit: contain;
+}
+
+:where(
+  .resource-card,
+  .resource-item,
+  .search-result-item,
+  .recent-update-item,
+  .all-links-url,
+  #adminView input,
+  #adminView textarea
+) {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Filter/sort/category/source bars remain usable on narrow screens */
+:where(
+  [class*="filter-row"],
+  [class*="filter-bar"],
+  [class*="filter-list"],
+  [class*="sort-row"],
+  [class*="sort-tabs"],
+  [class*="category-row"],
+  [class*="category-list"],
+  [class*="source-row"],
+  [class*="source-list"],
+  [class*="platform-row"],
+  [class*="platform-list"]
+) {
+  max-width: 100%;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+:where(
+  [class*="filter-row"],
+  [class*="sort-row"],
+  [class*="sort-tabs"],
+  [class*="category-row"],
+  [class*="source-row"],
+  [class*="platform-row"]
+)::-webkit-scrollbar {
+  display: none;
+}
+
+/* Resource metadata may wrap but titles remain readable */
+:where(
+  .recent-update-meta,
+  [class*="resource-meta"],
+  [class*="item-meta"],
+  [class*="card-meta"]
+) {
+  display: flex;
+  max-width: 100%;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+
+.site-resource-status {
+  max-width: 100%;
+}
+
+/* Dialog viewport and safe-area handling */
+:where(
+  .all-links-overlay,
+  .qr-promo-overlay
+) {
+  padding:
+    max(12px, env(safe-area-inset-top))
+    max(12px, env(safe-area-inset-right))
+    max(12px, env(safe-area-inset-bottom))
+    max(12px, env(safe-area-inset-left));
+}
+
+:where(
+  .all-links-dialog,
+  .qr-promo-dialog
+) {
+  width: min(100%, 430px);
+  max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 24px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Admin never overflows viewport */
+#adminView :where(
+  .admin-panel,
+  .editor-section,
+  .site-ops-panel,
+  .resource-editor-card,
+  .resource-editor-item
+) {
+  max-width: 100%;
+}
+
+#adminView :where(
+  input,
+  textarea,
+  select,
+  button
+) {
+  max-width: 100%;
+}
+
+#adminView :where(
+  .site-ops-table,
+  table,
+  [class*="table-wrap"],
+  [class*="table-container"]
+) {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Very small phones: 320–359px */
+@media (max-width: 359px) {
+  body {
+    font-size: 13px;
+  }
+
+  :where(
+    .content-card,
+    .resource-section,
+    .ranking-section,
+    .recent-updates-section,
+    .recent-updates-page-card
+  ) {
+    border-radius: 15px;
+  }
+
+  :where(
+    .resource-card,
+    .resource-item,
+    .search-result-item,
+    .recent-update-item,
+    button[data-resource-id],
+    article[data-resource-id],
+    li[data-resource-id]
+  ) {
+    border-radius: 12px;
+  }
+
+  :where(
+    [class*="filter-row"],
+    [class*="sort-row"],
+    [class*="category-row"],
+    [class*="source-row"]
+  ) {
+    gap: 5px !important;
+  }
+
+  :where(
+    [class*="filter-row"],
+    [class*="sort-row"],
+    [class*="category-row"],
+    [class*="source-row"]
+  ) button {
+    min-height: 34px;
+    padding-inline: 11px !important;
+    font-size: 11px !important;
+  }
+
+  .recent-update-item {
+    grid-template-columns: 26px minmax(0, 1fr) 16px !important;
+    gap: 7px !important;
+    padding-inline: 8px !important;
+  }
+
+  .recent-update-rank {
+    width: 25px !important;
+    height: 25px !important;
+  }
+
+  .all-links-actions {
+    grid-template-columns: 1fr !important;
+  }
+
+  .all-links-copy,
+  .all-links-open {
+    width: 100%;
+  }
+
+  .qr-promo-benefits {
+    grid-template-columns: 1fr !important;
+  }
+
+  .qr-promo-floating {
+    max-width: calc(100vw - 20px) !important;
+    transform: scale(.92);
+    transform-origin: left bottom;
+  }
+
+  #adminView .resource-rating-year-row {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Mainstream compact phones: 360–389px */
+@media (min-width: 360px) and (max-width: 389px) {
+  :where(
+    [class*="filter-row"],
+    [class*="sort-row"],
+    [class*="category-row"],
+    [class*="source-row"]
+  ) button {
+    padding-inline: 13px !important;
+  }
+
+  .recent-update-item {
+    grid-template-columns: 29px minmax(0, 1fr) 18px !important;
+  }
+
+  .all-links-dialog {
+    max-width: calc(100vw - 18px);
+  }
+}
+
+/* iPhone/large Android: 390–430px */
+@media (min-width: 390px) and (max-width: 430px) {
+  :where(
+    .all-links-dialog,
+    .qr-promo-dialog
+  ) {
+    max-width: calc(100vw - 20px);
+  }
+
+  .recent-updates-section {
+    margin-inline: auto;
+  }
+}
+
+/* All phone widths */
+@media (max-width: 767px) {
+  body {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  :where(
+    .app-shell,
+    .home-shell,
+    .search-shell,
+    .page-shell,
+    .site-shell,
+    .mobile-shell
+  ) {
+    padding-left: max(0px, env(safe-area-inset-left));
+    padding-right: max(0px, env(safe-area-inset-right));
+  }
+
+  /* Horizontal filter scrolling instead of clipping */
+  :where(
+    [class*="filter-row"],
+    [class*="sort-row"],
+    [class*="sort-tabs"],
+    [class*="category-row"],
+    [class*="source-row"],
+    [class*="platform-row"]
+  ) {
+    display: flex !important;
+    width: 100%;
+    align-items: center;
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  :where(
+    [class*="filter-row"],
+    [class*="sort-row"],
+    [class*="sort-tabs"],
+    [class*="category-row"],
+    [class*="source-row"],
+    [class*="platform-row"]
+  ) > * {
+    flex: 0 0 auto;
+  }
+
+  :where(
+    .resource-card,
+    .resource-item,
+    .search-result-item,
+    .recent-update-item,
+    button[data-resource-id],
+    article[data-resource-id],
+    li[data-resource-id]
+  ) {
+    max-width: 100%;
+  }
+
+  /* Prevent floating group button from blocking main actions */
+  .qr-promo-floating {
+    left: max(10px, env(safe-area-inset-left)) !important;
+    right: auto !important;
+    bottom: max(74px, calc(env(safe-area-inset-bottom) + 66px)) !important;
+  }
+
+  .all-links-overlay,
+  .qr-promo-overlay {
+    align-items: end;
+    padding: 0;
+  }
+
+  .all-links-dialog,
+  .qr-promo-dialog {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 94dvh !important;
+    margin: 0;
+    border-radius: 24px 24px 0 0 !important;
+    padding-bottom: max(18px, env(safe-area-inset-bottom)) !important;
+  }
+
+  .all-links-head,
+  .qr-promo-topbar {
+    position: sticky;
+    z-index: 3;
+    top: 0;
+    background: inherit;
+  }
+
+  /* Admin form rows stack cleanly */
+  #adminView :where(
+    .form-grid,
+    .field-grid,
+    .settings-grid,
+    .resource-grid,
+    .site-ops-summary
+  ) {
+    grid-template-columns: 1fr !important;
+  }
+
+  #adminView :where(
+    .site-ops-section-head,
+    .section-title,
+    .admin-toolbar
+  ) {
+    align-items: stretch !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  #adminView :where(
+    .site-ops-save-statuses,
+    .site-ops-refresh,
+    #saveButton
+  ) {
+    width: 100%;
+  }
+
+  #adminView .site-ops-row {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  #adminView .site-ops-row select {
+    width: 100%;
+  }
+}
+
+/* Landscape phones */
+@media (max-height: 500px) and (orientation: landscape) {
+  :where(
+    .all-links-overlay,
+    .qr-promo-overlay
+  ) {
+    align-items: center;
+    padding: 8px;
+  }
+
+  :where(
+    .all-links-dialog,
+    .qr-promo-dialog
+  ) {
+    width: min(92vw, 620px) !important;
+    max-width: min(92vw, 620px) !important;
+    max-height: calc(100dvh - 16px) !important;
+    border-radius: 20px !important;
+  }
+
+  .qr-promo-hero-icon {
+    width: 48px !important;
+    height: 48px !important;
+    margin-bottom: 5px !important;
+  }
+
+  .qr-promo-benefits {
+    grid-template-columns: repeat(3, 1fr) !important;
+    margin-top: 8px !important;
+  }
+}
+
+/* Small and medium tablets */
+@media (min-width: 768px) and (max-width: 1024px) {
+  :where(
+    .app-shell,
+    .home-shell,
+    .search-shell,
+    .page-shell,
+    .site-shell,
+    .mobile-shell
+  ) {
+    width: min(100%, 760px);
+    margin-inline: auto;
+  }
+
+  .all-links-dialog {
+    width: min(86vw, 520px);
+  }
+
+  .qr-promo-dialog {
+    width: min(82vw, 430px);
+  }
+
+  #adminView :where(
+    .form-grid,
+    .field-grid,
+    .settings-grid,
+    .resource-grid
+  ) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #adminView .site-ops-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+/* Desktop and wide screens */
+@media (min-width: 1025px) {
+  :where(
+    .app-shell,
+    .home-shell,
+    .search-shell,
+    .page-shell,
+    .site-shell,
+    .mobile-shell
+  ) {
+    margin-inline: auto;
+  }
+
+  #adminView .site-ops-summary {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+
+  .all-links-dialog {
+    width: min(100%, 540px);
+  }
+}
+
+/* Touch devices: comfortable tap targets */
+@media (hover: none) and (pointer: coarse) {
+  :where(button, a, select, input[type="checkbox"]) {
+    touch-action: manipulation;
+  }
+
+  :where(
+    .all-links-copy,
+    .all-links-open,
+    .all-links-bottom-close,
+    .qr-promo-close,
+    .site-inline-request-button
+  ) {
+    min-height: 44px;
+  }
+
+  :where(
+    .resource-card,
+    .resource-item,
+    .search-result-item,
+    .recent-update-item,
+    button[data-resource-id]
+  ):hover {
+    transform: none;
+    box-shadow: none;
+  }
+}
