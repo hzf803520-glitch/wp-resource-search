@@ -1455,40 +1455,83 @@
       }
 
       panel.querySelector("button")?.addEventListener("click", () => {
-        // Close the resource modal completely first.
-        modal.hidden = true;
-        modal.setAttribute("hidden", "");
-        document.body.classList.remove(
-          "all-links-modal-open",
-          "site-transfer-modal-open"
-        );
+        function closeAllResourceOverlays() {
+          document.querySelectorAll(
+            "#allCloudLinksModal,.all-links-overlay"
+          ).forEach((overlay) => {
+            overlay.hidden = true;
+            overlay.setAttribute("hidden", "");
+            overlay.setAttribute("aria-hidden", "true");
+            overlay.style.display = "none";
+          });
 
-        // Open the QR group modal directly instead of relying on a simulated
-        // click on the floating button, which can still be hidden during the
-        // resource-modal closing transition.
-        const openQrModal = () => {
+          document.body.classList.remove(
+            "all-links-modal-open",
+            "site-transfer-modal-open"
+          );
+
+          document.documentElement.style.removeProperty("overflow");
+          document.body.style.removeProperty("overflow");
+        }
+
+        function forceQrModalVisible() {
           const qrModal = document.getElementById("qrPromoModal");
+          if (!qrModal) return false;
 
-          if (qrModal) {
-            qrModal.hidden = false;
-            qrModal.removeAttribute("hidden");
-            document.body.classList.add("qr-promo-open");
-            qrModal.querySelector(
-              ".qr-promo-close-icon,.qr-promo-close"
-            )?.focus();
-            return;
+          const dialog = qrModal.querySelector(".qr-promo-dialog");
+          if (!dialog) return false;
+
+          qrModal.hidden = false;
+          qrModal.removeAttribute("hidden");
+          qrModal.removeAttribute("aria-hidden");
+          qrModal.style.removeProperty("display");
+
+          dialog.hidden = false;
+          dialog.removeAttribute("hidden");
+          dialog.style.removeProperty("display");
+          dialog.style.opacity = "1";
+          dialog.style.visibility = "visible";
+          dialog.style.transform = "none";
+
+          document.body.classList.add("qr-promo-open");
+          dialog.querySelector(
+            ".qr-promo-close-icon,.qr-promo-close"
+          )?.focus();
+
+          return true;
+        }
+
+        function openGroupModal() {
+          closeAllResourceOverlays();
+
+          const trigger =
+            document.getElementById("qrPromoFloatingButton")
+            || document.querySelector(".qr-promo-floating");
+
+          if (trigger) {
+            trigger.style.removeProperty("opacity");
+            trigger.style.removeProperty("visibility");
+            trigger.style.removeProperty("pointer-events");
+            trigger.click();
           }
 
-          // Fallback for pages where the QR modal has not finished rendering.
-          const trigger = document.querySelector(".qr-promo-floating");
-          trigger?.click();
-        };
+          requestAnimationFrame(() => {
+            forceQrModalVisible();
+          });
+
+          setTimeout(() => {
+            if (!forceQrModalVisible() && trigger) {
+              trigger.click();
+              setTimeout(forceQrModalVisible, 80);
+            }
+          }, 180);
+        }
+
+        closeAllResourceOverlays();
 
         requestAnimationFrame(() => {
-          requestAnimationFrame(openQrModal);
+          requestAnimationFrame(openGroupModal);
         });
-
-        setTimeout(openQrModal, 220);
       });
     }
 
@@ -2441,10 +2484,18 @@
           "allCloudLinksModal"
         );
 
+        const linksModalOpen = Boolean(
+          linksModal && !linksModal.hidden
+        );
+
         document.body.classList.toggle(
           "site-transfer-modal-open",
-          Boolean(linksModal && !linksModal.hidden)
+          linksModalOpen
         );
+
+        if (!linksModalOpen && linksModal) {
+          linksModal.style.removeProperty("display");
+        }
 
         setTimeout(enhanceLinksModal, 20);
         setTimeout(enhanceLinksModal, 120);
