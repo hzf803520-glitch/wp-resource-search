@@ -24,6 +24,7 @@
   let adminInstalled = false;
   let adminData = null;
   let toastTimer = null;
+  let lastOpenedResourceId = "";
 
   function normalize(value) {
     return String(value ?? "").replace(/\s+/g, " ").trim();
@@ -676,9 +677,49 @@
   }
 
   function resourceFromOpenModal(modal) {
-    const title = normalize(modal.querySelector(".all-links-success span")?.textContent);
+    const modalResourceId = normalize(
+      modal.dataset.siteResourceId || lastOpenedResourceId
+    );
+
+    if (modalResourceId) {
+      const byId = resources().find(
+        (resource) => String(resource.id) === modalResourceId
+      );
+
+      if (byId) {
+        modal.dataset.siteResourceId = String(byId.id);
+        return byId;
+      }
+    }
+
+    const title = normalize(
+      modal.querySelector(".all-links-success span")?.textContent
+    );
+
     if (!title) return null;
-    return resources().find((resource) => normalize(resource.title) === title) || null;
+
+    const exact = resources().find(
+      (resource) => normalize(resource.title) === title
+    );
+
+    if (exact) {
+      modal.dataset.siteResourceId = String(exact.id);
+      return exact;
+    }
+
+    const approximate = resources().find((resource) => {
+      const resourceTitle = normalize(resource.title);
+      return (
+        resourceTitle.includes(title)
+        || title.includes(resourceTitle)
+      );
+    }) || null;
+
+    if (approximate) {
+      modal.dataset.siteResourceId = String(approximate.id);
+    }
+
+    return approximate;
   }
 
   function enhanceLinksModal() {
@@ -734,7 +775,13 @@
           }
         });
 
-        card.appendChild(button);
+        const actions = card.querySelector(".all-links-actions");
+
+        if (actions) {
+          actions.insertAdjacentElement("afterend", button);
+        } else {
+          card.appendChild(button);
+        }
       });
 
       modal.querySelectorAll(".all-links-open").forEach((link) => {
@@ -753,6 +800,26 @@
 
   function installPublicTracking() {
     document.addEventListener("click", (event) => {
+      const resourceTarget = event.target.closest("[data-resource-id]");
+
+      if (resourceTarget) {
+        lastOpenedResourceId = String(
+          resourceTarget.dataset.resourceId || ""
+        );
+
+        setTimeout(enhanceLinksModal, 80);
+        setTimeout(enhanceLinksModal, 220);
+        setTimeout(enhanceLinksModal, 520);
+      }
+
+      const modalTrigger = event.target.closest(
+        "#allCloudLinksModal button,#allCloudLinksModal a"
+      );
+
+      if (modalTrigger) {
+        setTimeout(enhanceLinksModal, 40);
+      }
+
       const button = event.target.closest("button,a,[role='button']");
       if (!button) return;
       const text = normalize(button.textContent);
@@ -1036,8 +1103,27 @@
     installPublicTracking();
     schedulePublicRender();
 
-    const observer = new MutationObserver(schedulePublicRender);
-    observer.observe(document.body, { childList: true, subtree: true });
+    const observer = new MutationObserver((mutations) => {
+      const modalVisibilityChanged = mutations.some((mutation) => (
+        mutation.type === "attributes"
+        && mutation.target?.id === "allCloudLinksModal"
+        && mutation.attributeName === "hidden"
+      ));
+
+      schedulePublicRender();
+
+      if (modalVisibilityChanged) {
+        setTimeout(enhanceLinksModal, 20);
+        setTimeout(enhanceLinksModal, 120);
+      }
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["hidden"]
+    });
   }
 
   function initializeAdmin() {
