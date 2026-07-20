@@ -1220,6 +1220,38 @@ async function handleApi(req, res, url) {
     }, securityHeaders());
   }
 
+  if (req.method === "POST" && url.pathname === "/api/admin/site-ops/reset") {
+    if (!requirePermission(adminSession, res, "resources")) return;
+
+    const body = await readJsonBody(req, 32 * 1024);
+    if (cleanText(body?.confirm, 80) !== "RESET_OPERATIONS_DATA") {
+      return json(res, 400, {
+        ok: false,
+        message: "重置确认信息不正确"
+      }, securityHeaders());
+    }
+
+    siteOpsStore.requests = [];
+    siteOpsStore.feedback = [];
+    siteOpsStore.stats = {
+      searches: {},
+      resources: {},
+      sources: {},
+      sorts: {},
+      qr: { count: 0, lastAt: "" }
+    };
+    siteOpsStore.version =
+      Math.max(1, Number(siteOpsStore.version) || 1) + 1;
+    siteOpsStore.updatedAt = new Date().toISOString();
+
+    await queueSiteOpsSave();
+
+    return json(res, 200, {
+      ok: true,
+      message: "运营统计数据已重置"
+    }, securityHeaders());
+  }
+
   if (req.method === "PUT" && url.pathname === "/api/admin/site-ops/statuses") {
     if (!requirePermission(adminSession, res, "resources")) return;
     const body = await readJsonBody(req, 256 * 1024);
@@ -1430,7 +1462,7 @@ async function serveStatic(req, res, url) {
       const qrPromoScript = '<script src="/qr-promo-config.js?v=20260719-1"></script>';
       const recentUpdatesScript = '<script src="/recent-updates-config.js?v=20260720-3"></script>';
       const yearConfigScript = '<script src="/year-config.js?v=20260720-1"></script>';
-      const siteOptimizationScript = '<script src="/site-optimization.js?v=20260720-25"></script>';
+      const siteOptimizationScript = '<script src="/site-optimization.js?v=20260720-28"></script>';
       const siteThemeStyle = '<link rel="stylesheet" href="/site-theme.css?v=20260720-18">';
       const scripts = [
         !html.includes("/notice-config.js") ? noticeScript : "",

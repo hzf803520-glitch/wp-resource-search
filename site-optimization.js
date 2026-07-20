@@ -307,6 +307,29 @@
       }
       .site-ops-panel .site-ops-intro h2 { margin: 5px 0 6px; }
       .site-ops-panel .site-ops-intro p { margin: 0; color: #7f8996; }
+      .site-ops-intro-actions {
+        display: flex;
+        flex: none;
+        align-items: center;
+        gap: 8px;
+      }
+      .site-ops-reset {
+        min-height: 40px;
+        border: 1px solid rgba(219, 73, 84, .18);
+        border-radius: 11px;
+        padding: 0 14px;
+        color: #d64a54;
+        background: #fff0f1;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      .site-ops-reset:hover {
+        background: #ffe5e7;
+      }
+      .site-ops-reset:disabled {
+        opacity: .58;
+        cursor: wait;
+      }
       .site-ops-refresh {
         min-height: 40px;
         border: 1px solid #e1e5e9;
@@ -461,6 +484,19 @@
         .site-ops-summary { grid-template-columns: 1fr 1fr; }
         .site-ops-row { grid-template-columns: minmax(0, 1fr); }
         .site-ops-ranking { grid-template-columns: 1fr; }
+      }
+
+      @media (max-width: 720px) {
+        .site-ops-intro {
+          flex-direction: column;
+        }
+        .site-ops-intro-actions {
+          width: 100%;
+        }
+        .site-ops-intro-actions > button {
+          min-width: 0;
+          flex: 1;
+        }
       }
     `;
     document.head.appendChild(style);
@@ -2216,7 +2252,10 @@
           <h2>网站运营中心</h2>
           <p>统一查看资源状态、失效反馈、用户需求和点击数据，不改动原有资源配置。</p>
         </div>
-        <button class="site-ops-refresh" type="button" data-site-ops-refresh>刷新数据</button>
+        <div class="site-ops-intro-actions">
+          <button class="site-ops-reset" type="button" data-site-ops-reset>重置运营数据</button>
+          <button class="site-ops-refresh" type="button" data-site-ops-refresh>刷新数据</button>
+        </div>
       </div>
 
       <div class="site-ops-summary">
@@ -2293,7 +2332,45 @@
   }
 
   function bindAdminPanel(panel) {
-    panel.querySelector("[data-site-ops-refresh]")?.addEventListener("click", loadAdminData);
+    panel.querySelector("[data-site-ops-refresh]")?.addEventListener(
+      "click",
+      loadAdminData
+    );
+
+    panel.querySelector("[data-site-ops-reset]")?.addEventListener(
+      "click",
+      async (event) => {
+        const button = event.currentTarget;
+
+        const confirmed = window.confirm(
+          "确定重置运营数据吗？\n\n"
+          + "将清空失效反馈、资源需求、资源打开次数、"
+          + "进群点击和搜索统计。\n\n"
+          + "资源、网盘链接和资源状态不会被删除。"
+        );
+
+        if (!confirmed) return;
+
+        button.disabled = true;
+        button.textContent = "正在重置…";
+
+        try {
+          await fetchJson("/api/admin/site-ops/reset", {
+            method: "POST",
+            body: JSON.stringify({
+              confirm: "RESET_OPERATIONS_DATA"
+            })
+          });
+
+          showToast("运营数据已重置");
+          await loadAdminData();
+        } catch (error) {
+          showToast(error.message || "重置失败");
+          button.disabled = false;
+          button.textContent = "重新重置";
+        }
+      }
+    );
 
     panel.querySelector("[data-site-ops-save-statuses]")?.addEventListener("click", async (event) => {
       const button = event.currentTarget;
