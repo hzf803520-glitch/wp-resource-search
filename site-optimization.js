@@ -747,6 +747,8 @@
     clearTimeout(publicRenderTimer);
     publicRenderTimer = setTimeout(() => {
       applyStatusBadges();
+      enhanceResourceCards();
+      installHomeValueStrip();
       enhanceLinksModal();
 
       const keyword = currentSearchKeyword();
@@ -1114,6 +1116,263 @@
     noResultTimer = setTimeout(() => showNoResultCard(value), 650);
   }
 
+  function publicResourceStatus(resource) {
+    const code = statusCode(
+      publicOps?.statuses?.[String(resource?.id)]
+      || publicOps?.statuses?.[resource?.id]
+      || resource?.siteStatus
+    );
+
+    return STATUS_INFO[code] || null;
+  }
+
+  function findCardArrow(card) {
+    const explicit = card.querySelector(
+      ".recent-update-arrow,[class*='arrow'],[class*='chevron']"
+    );
+
+    if (
+      explicit
+      && !explicit.closest(
+        "[class*='poster'],[class*='cover'],[class*='image'],figure"
+      )
+    ) {
+      return explicit;
+    }
+
+    return [...card.querySelectorAll("span,small,strong,div")]
+      .filter((element) => /^[›>»→❯]$/.test(normalize(element.textContent)))
+      .filter((element) => !element.closest(
+        "[class*='poster'],[class*='cover'],[class*='image'],figure"
+      ))[0] || null;
+  }
+
+  function enhanceResourceCards() {
+    canonicalStatusEntries().forEach(({ card, resource }) => {
+      if (!card || card.closest("#adminView")) return;
+      if (card.closest("#allCloudLinksModal")) return;
+      if (card.closest("#qrPromoModal")) return;
+
+      card.classList.add("site-conversion-card");
+
+      const id = String(resource.id);
+      let chip = card.querySelector(
+        `[data-site-resource-cta="${id}"]`
+      );
+
+      if (chip) return;
+
+      const arrow = findCardArrow(card);
+      if (!arrow?.parentElement) return;
+
+      chip = document.createElement("span");
+      chip.className = "site-resource-cta-chip";
+      chip.dataset.siteResourceCta = id;
+      chip.setAttribute("aria-hidden", "true");
+      chip.textContent = "立即获取";
+
+      arrow.insertAdjacentElement("beforebegin", chip);
+      arrow.parentElement.classList.add("site-card-action-host");
+    });
+  }
+
+  function installHomeValueStrip() {
+    if (!["/", "/index.html"].includes(location.pathname)) return;
+    if (document.getElementById("siteHomeValueStrip")) return;
+
+    const input = suggestionInput || document.querySelector(
+      'input[type="search"],input[placeholder*="搜索"]'
+    );
+
+    if (!input) return;
+
+    const host = input.closest("form") || input.parentElement;
+    if (!host?.parentElement) return;
+
+    const strip = document.createElement("section");
+    strip.id = "siteHomeValueStrip";
+    strip.className = "site-home-value-strip";
+    strip.innerHTML = `
+      <div class="site-home-value-main">
+        <span class="site-home-value-icon">⚡</span>
+        <span>
+          <strong>搜到资源，直接打开网盘保存</strong>
+          <small>多网盘可选 · 状态可反馈 · 持续维护</small>
+        </span>
+      </div>
+      <div class="site-home-value-points">
+        <span>✓ 链接状态清晰</span>
+        <span>↗ 一键打开网盘</span>
+      </div>
+    `;
+
+    host.insertAdjacentElement("afterend", strip);
+  }
+
+  function providerLabel(card) {
+    return normalize(
+      card?.querySelector(".all-links-provider-badge")?.textContent
+      || "网盘"
+    );
+  }
+
+  function ensureTransferSummary(modal, resource, cards) {
+    const success = modal.querySelector(".all-links-success");
+    if (!success) return;
+
+    let summary = modal.querySelector("[data-site-transfer-summary]");
+
+    if (!summary) {
+      summary = document.createElement("section");
+      summary.className = "site-transfer-summary";
+      summary.dataset.siteTransferSummary = "true";
+      success.insertAdjacentElement("afterend", summary);
+    }
+
+    const status = publicResourceStatus(resource);
+    const updateText = normalize(resource?.update);
+    const year = Number(resource?.year) || 0;
+
+    const facts = [
+      status
+        ? `<span class="site-transfer-fact ${escapeHtml(status.className)}">${escapeHtml(status.icon)} ${escapeHtml(status.label)}</span>`
+        : "",
+      updateText
+        ? `<span class="site-transfer-fact">🆕 ${escapeHtml(updateText)}</span>`
+        : "",
+      year >= 1900
+        ? `<span class="site-transfer-fact">📅 ${year}</span>`
+        : "",
+      `<span class="site-transfer-fact">☁️ ${cards.length}个网盘可选</span>`
+    ].filter(Boolean).join("");
+
+    summary.innerHTML = `
+      <div class="site-transfer-trust">
+        <span class="site-transfer-trust-icon">✓</span>
+        <span>
+          <strong>资源已匹配</strong>
+          <small>选择网盘后，在网盘页面点击保存即可</small>
+        </span>
+      </div>
+      <div class="site-transfer-facts">${facts}</div>
+    `;
+  }
+
+  function ensureTransferSteps(card) {
+    if (card.querySelector("[data-site-transfer-steps]")) return;
+
+    const actions = card.querySelector(".all-links-actions");
+    if (!actions) return;
+
+    const steps = document.createElement("div");
+    steps.className = "site-transfer-steps";
+    steps.dataset.siteTransferSteps = "true";
+    steps.innerHTML = `
+      <span><b>1</b>打开网盘</span>
+      <i>›</i>
+      <span><b>2</b>登录账号</span>
+      <i>›</i>
+      <span><b>3</b>保存资源</span>
+    `;
+
+    actions.insertAdjacentElement("afterend", steps);
+  }
+
+  function revealAfterOpenPrompt(modal) {
+    let panel = modal.querySelector("[data-site-after-open]");
+
+    if (!panel) {
+      panel = document.createElement("section");
+      panel.className = "site-after-open-panel";
+      panel.dataset.siteAfterOpen = "true";
+      panel.innerHTML = `
+        <span class="site-after-open-icon">🔔</span>
+        <span class="site-after-open-copy">
+          <strong>已经打开网盘？</strong>
+          <small>加入资源群，接收后续更新与失效补链</small>
+        </span>
+        <button type="button">加入群聊</button>
+      `;
+
+      const closeButton = modal.querySelector(".all-links-bottom-close");
+      if (closeButton) {
+        closeButton.insertAdjacentElement("beforebegin", panel);
+      } else {
+        modal.querySelector(".all-links-body")?.appendChild(panel);
+      }
+
+      panel.querySelector("button")?.addEventListener("click", () => {
+        const trigger = document.querySelector(".qr-promo-floating");
+        if (trigger) trigger.click();
+      });
+    }
+
+    panel.classList.add("show");
+  }
+
+  function bindTransferOpenAction(link, modal, resource, sourceLabel) {
+    if (!link || link.dataset.siteTransferBound === "true") return;
+
+    link.dataset.siteTransferBound = "true";
+    link.addEventListener("click", () => {
+      sendEvent("source_open", { sourceLabel });
+      link.classList.add("opened");
+      link.textContent = "已打开网盘，请完成保存";
+
+      setTimeout(() => {
+        revealAfterOpenPrompt(modal);
+      }, 650);
+
+      setTimeout(() => {
+        if (link.isConnected) {
+          link.classList.remove("opened");
+          link.textContent = link.dataset.siteOriginalText || "立即打开并转存";
+        }
+      }, 6000);
+    });
+  }
+
+  function ensureStickyTransferAction(modal, firstCard, resource) {
+    if (!firstCard) return;
+
+    const originalOpen = firstCard.querySelector(".all-links-open");
+    if (!originalOpen) return;
+
+    let sticky = modal.querySelector("[data-site-transfer-sticky]");
+
+    if (!sticky) {
+      sticky = document.createElement("div");
+      sticky.className = "site-transfer-sticky";
+      sticky.dataset.siteTransferSticky = "true";
+
+      const closeButton = modal.querySelector(".all-links-bottom-close");
+      if (closeButton) {
+        closeButton.insertAdjacentElement("beforebegin", sticky);
+      } else {
+        modal.querySelector(".all-links-body")?.appendChild(sticky);
+      }
+    }
+
+    const label = providerLabel(firstCard);
+    sticky.innerHTML = `
+      <span>
+        <small>推荐使用</small>
+        <strong>${escapeHtml(label)}</strong>
+      </span>
+      <a
+        href="${escapeHtml(originalOpen.href)}"
+        target="_blank"
+        rel="noopener noreferrer"
+      >立即打开并转存</a>
+    `;
+
+    const stickyLink = sticky.querySelector("a");
+    if (stickyLink) {
+      stickyLink.dataset.siteOriginalText = "立即打开并转存";
+      bindTransferOpenAction(stickyLink, modal, resource, label);
+    }
+  }
+
   function resourceFromOpenModal(modal) {
     const modalResourceId = normalize(
       modal.dataset.siteResourceId || lastOpenedResourceId
@@ -1162,12 +1421,19 @@
 
   function enhanceLinksModal() {
     clearTimeout(modalEnhanceTimer);
+
     modalEnhanceTimer = setTimeout(() => {
       const modal = document.getElementById("allCloudLinksModal");
-      if (!modal || modal.hidden) return;
+      if (!modal || modal.hidden) {
+        document.body.classList.remove("site-transfer-modal-open");
+        return;
+      }
 
       const resource = resourceFromOpenModal(modal);
       if (!resource) return;
+
+      document.body.classList.add("site-transfer-modal-open");
+      modal.classList.add("site-transfer-optimized");
 
       if (modal.dataset.siteTrackedResource !== String(resource.id)) {
         modal.dataset.siteTrackedResource = String(resource.id);
@@ -1177,63 +1443,150 @@
         });
       }
 
-      if (publicOps.settings?.feedbackEnabled === false) return;
+      const cards = [...modal.querySelectorAll(".all-links-card")];
+      ensureTransferSummary(modal, resource, cards);
 
-      modal.querySelectorAll(".all-links-card").forEach((card) => {
-        if (card.querySelector("[data-site-feedback]")) return;
-        const sourceLabel = normalize(
-          card.querySelector(".all-links-provider-badge")?.textContent || "全部网盘"
-        );
+      cards.forEach((card, index) => {
+        const sourceLabel = providerLabel(card);
+        const provider = card.querySelector(".all-links-provider");
+        const providerSmall = provider?.querySelector("small");
+        const openLink = card.querySelector(".all-links-open");
+        const copyButton = card.querySelector(".all-links-copy");
 
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "site-feedback-button";
-        button.dataset.siteFeedback = "true";
-        button.textContent = `链接失效？反馈${sourceLabel}`;
+        card.classList.toggle("site-recommended-provider", index === 0);
+        card.classList.toggle("site-alternative-provider", index > 0);
 
-        button.addEventListener("click", async (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          button.disabled = true;
-          button.textContent = "正在提交…";
-          try {
-            await fetchJson("/api/site-ops/feedback", {
-              method: "POST",
-              body: JSON.stringify({
-                resourceId: String(resource.id),
-                resourceTitle: resource.title,
-                sourceLabel,
-                message: "用户反馈链接失效"
-              })
-            });
-            button.textContent = "✓ 已反馈，感谢提醒";
-          } catch (error) {
-            button.disabled = false;
-            button.textContent = error.message || "提交失败，请重试";
+        if (index === 0) {
+          if (!provider?.querySelector("[data-site-recommended]")) {
+            const badge = document.createElement("span");
+            badge.className = "site-recommended-badge";
+            badge.dataset.siteRecommended = "true";
+            badge.textContent = "推荐";
+            provider?.appendChild(badge);
           }
-        });
 
-        const actions = card.querySelector(".all-links-actions");
+          if (providerSmall) {
+            providerSmall.textContent = "优先使用 · 打开后直接保存";
+          }
 
-        if (actions) {
-          actions.insertAdjacentElement("afterend", button);
+          if (openLink) {
+            openLink.dataset.siteOriginalText = "立即打开并转存";
+            if (!openLink.classList.contains("opened")) {
+              openLink.textContent = "立即打开并转存";
+            }
+          }
+
+          if (copyButton && copyButton.dataset.siteCopyEnhanced !== "true") {
+            copyButton.dataset.siteCopyEnhanced = "true";
+            copyButton.textContent = "复制备用链接";
+            copyButton.addEventListener("click", () => {
+              const original = copyButton.textContent;
+              copyButton.textContent = "✓ 已复制";
+              setTimeout(() => {
+                if (copyButton.isConnected) {
+                  copyButton.textContent = original;
+                }
+              }, 1800);
+            });
+          }
+
+          ensureTransferSteps(card);
         } else {
-          card.appendChild(button);
+          if (providerSmall) providerSmall.textContent = "其他网盘方式";
+          if (openLink) {
+            openLink.dataset.siteOriginalText = "打开此网盘";
+            if (!openLink.classList.contains("opened")) {
+              openLink.textContent = "打开此网盘";
+            }
+          }
+          if (copyButton) copyButton.textContent = "复制链接";
+        }
+
+        if (openLink) {
+          bindTransferOpenAction(
+            openLink,
+            modal,
+            resource,
+            sourceLabel
+          );
+        }
+
+        if (
+          index === 1
+          && !card.previousElementSibling?.matches(
+            "[data-site-other-providers]"
+          )
+        ) {
+          const heading = document.createElement("div");
+          heading.className = "site-other-providers-title";
+          heading.dataset.siteOtherProviders = "true";
+          heading.innerHTML = `
+            <span>其他网盘方式</span>
+            <small>任选一个可用平台</small>
+          `;
+          card.insertAdjacentElement("beforebegin", heading);
+        }
+
+        if (
+          publicOps.settings?.feedbackEnabled !== false
+          && !card.querySelector("[data-site-feedback]")
+        ) {
+          const feedbackButton = document.createElement("button");
+          feedbackButton.type = "button";
+          feedbackButton.className = "site-feedback-button";
+          feedbackButton.dataset.siteFeedback = "true";
+          feedbackButton.textContent = "链接打不开？反馈失效";
+
+          feedbackButton.addEventListener("click", async (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            feedbackButton.disabled = true;
+            feedbackButton.textContent = "正在提交…";
+
+            try {
+              await fetchJson("/api/site-ops/feedback", {
+                method: "POST",
+                body: JSON.stringify({
+                  resourceId: String(resource.id),
+                  resourceTitle: resource.title,
+                  sourceLabel,
+                  message: "用户反馈链接失效"
+                })
+              });
+              feedbackButton.textContent = "✓ 已反馈，感谢提醒";
+            } catch (error) {
+              feedbackButton.disabled = false;
+              feedbackButton.textContent =
+                error.message || "提交失败，请重试";
+            }
+          });
+
+          const actions = card.querySelector(".all-links-actions");
+
+          if (actions) {
+            const steps = card.querySelector(
+              "[data-site-transfer-steps]"
+            );
+
+            if (steps) {
+              steps.insertAdjacentElement(
+                "afterend",
+                feedbackButton
+              );
+            } else {
+              actions.insertAdjacentElement(
+                "afterend",
+                feedbackButton
+              );
+            }
+          } else {
+            card.appendChild(feedbackButton);
+          }
         }
       });
 
-      modal.querySelectorAll(".all-links-open").forEach((link) => {
-        if (link.dataset.siteSourceTracked === "true") return;
-        link.dataset.siteSourceTracked = "true";
-        link.addEventListener("click", () => {
-          const card = link.closest(".all-links-card");
-          const sourceLabel = normalize(
-            card?.querySelector(".all-links-provider-badge")?.textContent || "网盘"
-          );
-          sendEvent("source_open", { sourceLabel });
-        });
-      });
-    }, 80);
+      ensureStickyTransferAction(modal, cards[0], resource);
+    }, 70);
   }
 
   function installPublicTracking() {
@@ -1623,6 +1976,15 @@
       schedulePublicRender();
 
       if (modalVisibilityChanged) {
+        const linksModal = document.getElementById(
+          "allCloudLinksModal"
+        );
+
+        document.body.classList.toggle(
+          "site-transfer-modal-open",
+          Boolean(linksModal && !linksModal.hidden)
+        );
+
         setTimeout(enhanceLinksModal, 20);
         setTimeout(enhanceLinksModal, 120);
       }
