@@ -1455,27 +1455,40 @@
       }
 
       panel.querySelector("button")?.addEventListener("click", () => {
-        const closeButton = modal.querySelector(
-          "[data-all-links-close],.all-links-close-icon,"
-          + ".all-links-bottom-close"
+        // Close the resource modal completely first.
+        modal.hidden = true;
+        modal.setAttribute("hidden", "");
+        document.body.classList.remove(
+          "all-links-modal-open",
+          "site-transfer-modal-open"
         );
 
-        closeButton?.click();
+        // Open the QR group modal directly instead of relying on a simulated
+        // click on the floating button, which can still be hidden during the
+        // resource-modal closing transition.
+        const openQrModal = () => {
+          const qrModal = document.getElementById("qrPromoModal");
 
-        if (!modal.hidden) {
-          modal.hidden = true;
-          document.body.classList.remove(
-            "all-links-modal-open",
-            "site-transfer-modal-open"
-          );
-        }
-
-        setTimeout(() => {
-          const trigger = document.querySelector(".qr-promo-floating");
-          if (trigger) {
-            trigger.click();
+          if (qrModal) {
+            qrModal.hidden = false;
+            qrModal.removeAttribute("hidden");
+            document.body.classList.add("qr-promo-open");
+            qrModal.querySelector(
+              ".qr-promo-close-icon,.qr-promo-close"
+            )?.focus();
+            return;
           }
-        }, 180);
+
+          // Fallback for pages where the QR modal has not finished rendering.
+          const trigger = document.querySelector(".qr-promo-floating");
+          trigger?.click();
+        };
+
+        requestAnimationFrame(() => {
+          requestAnimationFrame(openQrModal);
+        });
+
+        setTimeout(openQrModal, 220);
       });
     }
 
