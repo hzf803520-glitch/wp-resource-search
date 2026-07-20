@@ -473,7 +473,7 @@
   }
 
   function smallestLeafContaining(card, pattern) {
-    return [...card.querySelectorAll("span,small,em,strong,p,div")]
+    return [...card.querySelectorAll("span,small,em,strong,p,div,h1,h2,h3,h4")]
       .filter((element) => pattern.test(normalize(element.textContent)))
       .filter((element) => ![...element.children].some(
         (child) => pattern.test(normalize(child.textContent))
@@ -483,7 +483,71 @@
       ))[0] || null;
   }
 
-  function statusHost(card) {
+  function statusCode(entry) {
+    if (typeof entry === "string") return normalize(entry);
+    return normalize(entry?.status);
+  }
+
+  function resourceById(resourceId) {
+    if (!resourceId) return null;
+
+    return resources().find(
+      (resource) => String(resource.id) === String(resourceId)
+    ) || null;
+  }
+
+  function titleLeafForResource(card, resource) {
+    if (!card || !resource) return null;
+
+    const wanted = normalize(resource.title);
+    if (!wanted) return null;
+
+    const leaves = [...card.querySelectorAll(
+      "h1,h2,h3,h4,strong,b,p,span,div"
+    )].filter((element) => (
+      ![...element.children].some((child) => (
+        normalize(child.textContent) === normalize(element.textContent)
+      ))
+    ));
+
+    return leaves.find((element) => normalize(element.textContent) === wanted)
+      || leaves.find((element) => {
+        const value = normalize(element.textContent);
+        return value.startsWith(wanted) || wanted.startsWith(value);
+      })
+      || null;
+  }
+
+  function resourceFromCard(card) {
+    if (!card) return null;
+
+    const idNode = card.matches?.("[data-resource-id]")
+      ? card
+      : card.querySelector?.("[data-resource-id]");
+
+    const resourceId = normalize(
+      idNode?.dataset?.resourceId
+      || card.dataset?.resourceId
+      || card.dataset?.siteResourceId
+    );
+
+    const byId = resourceById(resourceId);
+    if (byId) return byId;
+
+    const cardText = normalize(card.textContent);
+
+    return resources()
+      .filter((resource) => normalize(resource.title))
+      .sort((left, right) => (
+        normalize(right.title).length - normalize(left.title).length
+      ))
+      .find((resource) => {
+        const title = normalize(resource.title);
+        return cardText.includes(title);
+      }) || null;
+  }
+
+  function statusHost(card, resource) {
     const known = card.querySelector(
       ".recent-update-meta,[class*='resource-meta'],[class*='item-meta'],[class*='card-meta']"
     );
@@ -492,35 +556,114 @@
     const heat = smallestLeafContaining(card, /🔥/);
     if (heat?.parentElement) return heat.parentElement;
 
-    const tag = smallestLeafContaining(card, /网盘|电影|短剧|动漫|影视|小说|学习资料/);
-    return tag?.parentElement || null;
+    const tag = smallestLeafContaining(
+      card,
+      /网盘|电影|短剧|动漫|影视|小说|学习资料/
+    );
+    if (tag?.parentElement) return tag.parentElement;
+
+    const titleLeaf = titleLeafForResource(card, resource);
+    if (!titleLeaf) return null;
+
+    let fallback = card.querySelector("[data-site-status-fallback-host]");
+
+    if (!fallback) {
+      fallback = document.createElement("span");
+      fallback.dataset.siteStatusFallbackHost = "true";
+      fallback.style.display = "inline-flex";
+      fallback.style.alignItems = "center";
+      fallback.style.flexWrap = "wrap";
+      fallback.style.gap = "5px";
+      fallback.style.marginTop = "5px";
+
+      const titleParent = titleLeaf.parentElement;
+
+      if (titleParent && titleParent !== card) {
+        titleParent.insertAdjacentElement("beforeend", fallback);
+      } else {
+        titleLeaf.insertAdjacentElement("afterend", fallback);
+      }
+    }
+
+    return fallback;
+  }
+
+  function candidateResourceCards() {
+    const cards = new Set();
+
+    document.querySelectorAll("[data-resource-id]").forEach((target) => {
+      const card = cardForTarget(target);
+      if (card) cards.add(card);
+    });
+
+    document.querySelectorAll(
+      ".resource-card,.resource-item,.recent-update-item,.search-result-item,button,article,li"
+    ).forEach((candidate) => {
+      if (!candidate.parentElement) return;
+      if (candidate.closest("#adminView")) return;
+      if (candidate.closest("#allCloudLinksModal")) return;
+      if (candidate.closest("#qrPromoModal")) return;
+
+      const textValue = normalize(candidate.textContent);
+      if (!textValue || textValue.length > 500) return;
+
+      const matched = resources().some((resource) => {
+        const title = normalize(resource.title);
+        return title && textValue.includes(title);
+      });
+
+      if (matched) cards.add(candidate);
+    });
+
+    return [...cards];
   }
 
   function applyStatusBadges() {
-    const statuses = publicOps.statuses || {};
-    const seenCards = new Set();
+    const statuses = publicOps?.statuses || {};
 
-    document.querySelectorAll("[data-resource-id]").forEach((target) => {
-      const resourceId = String(target.dataset.resourceId || "");
-      const status = statuses[resourceId]?.status;
-      const info = STATUS_INFO[status];
-      const card = cardForTarget(target);
+    document.querySelectorAll("[data-site-resource-status]").forEach(
+      (badge) => badge.remove()
+    );
 
-      if (!card || seenCards.has(card)) return;
-      seenCards.add(card);
+    candidateResourceCards().forEach((card) => {
+      const resource = resourceFromCard(card);
+      if (!resource) return;
 
-      card.querySelectorAll("[data-site-resource-status]").forEach((badge) => badge.remove());
+      const code = statusCode(
+        statuses[String(resource.id)]
+        || statuses[resource.id]
+      );
+
+      const info = STATUS_INFO[code];
       if (!info) return;
 
-      const host = statusHost(card);
+      const host = statusHost(card, resource);
       if (!host) return;
 
       const badge = document.createElement("span");
       badge.className = `site-resource-status ${info.className}`;
       badge.dataset.siteResourceStatus = "true";
+      badge.dataset.siteResourceId = String(resource.id);
       badge.textContent = `${info.icon} ${info.label}`;
+      badge.title = `资源状态：${info.label}`;
+
       host.appendChild(badge);
     });
+  }
+
+  async function refreshPublicStatuses() {
+    try {
+      const latest = await fetchJson(
+        `/api/site-ops/public?_=${Date.now()}`
+      );
+
+      if (latest && typeof latest === "object") {
+        publicOps = latest;
+        applyStatusBadges();
+      }
+    } catch {
+      // Keep the last successfully loaded status data.
+    }
   }
 
   function schedulePublicRender() {
@@ -1228,11 +1371,16 @@
       button.disabled = true;
       button.textContent = "正在保存…";
       try {
-        await fetchJson("/api/admin/site-ops/statuses", {
+        const saved = await fetchJson("/api/admin/site-ops/statuses", {
           method: "PUT",
           body: JSON.stringify({ statuses })
         });
-        showToast("资源状态已保存");
+
+        if (adminData?.siteOps) {
+          adminData.siteOps.statuses = saved.statuses || {};
+        }
+
+        showToast("资源状态已保存，前台刷新后显示");
         button.textContent = "保存成功";
         setTimeout(() => { button.textContent = "保存资源状态"; }, 1200);
       } catch (error) {
@@ -1325,6 +1473,20 @@
     installSearchSuggestions();
     installPublicTracking();
     schedulePublicRender();
+
+    window.addEventListener("pageshow", () => {
+      refreshPublicStatuses();
+    });
+
+    window.addEventListener("focus", () => {
+      refreshPublicStatuses();
+    });
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        refreshPublicStatuses();
+      }
+    });
 
     const observer = new MutationObserver((mutations) => {
       const modalVisibilityChanged = mutations.some((mutation) => (
