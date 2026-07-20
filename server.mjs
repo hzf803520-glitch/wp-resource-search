@@ -532,16 +532,21 @@ function normalizeConfig(input, previous = {}) {
     const changed = !comparablePrevious
       || JSON.stringify(comparablePrevious) !== JSON.stringify(normalizedResource);
 
+    const previouslyTracked = previousResource?.updatedTracked === true;
+
     return {
       ...normalizedResource,
+
+      // Only an actual change to this resource updates its date.
+      // Never fall back to the global config update time.
       updatedAt: changed
         ? saveTimestamp
-        : cleanText(
-            previousResource?.updatedAt
-              || previous.meta?.updatedAt
-              || saveTimestamp,
-            40
-          )
+        : cleanText(previousResource?.updatedAt || "", 40),
+
+      // Old versions generated dates from the global config timestamp,
+      // which made untouched resources appear as updated today.
+      // This flag distinguishes real resource changes from those legacy dates.
+      updatedTracked: changed ? true : previouslyTracked
     };
   });
   const categoryOrder = [...new Set([
@@ -844,7 +849,7 @@ async function serveStatic(req, res, url) {
       const allLinksScript = '<script src="/all-links-modal.js?v=20260719-1"></script>';
       const disclaimerScript = '<script src="/disclaimer-config.js?v=20260719-1"></script>';
       const qrPromoScript = '<script src="/qr-promo-config.js?v=20260719-1"></script>';
-      const recentUpdatesScript = '<script src="/recent-updates-config.js?v=20260719-12"></script>';
+      const recentUpdatesScript = '<script src="/recent-updates-config.js?v=20260720-3"></script>';
       const yearConfigScript = '<script src="/year-config.js?v=20260720-1"></script>';
       const scripts = [
         !html.includes("/notice-config.js") ? noticeScript : "",

@@ -60,8 +60,10 @@
     };
   }
 
-  function timestamp(resource, config) {
-    const value = Date.parse(resource?.updatedAt || config?.meta?.updatedAt || "");
+  function timestamp(resource) {
+    if (resource?.updatedTracked !== true) return 0;
+
+    const value = Date.parse(resource?.updatedAt || "");
     return Number.isFinite(value) ? value : 0;
   }
 
@@ -88,10 +90,16 @@
 
   function recentResources(config) {
     return (Array.isArray(config?.resources) ? config.resources : [])
-      .filter((resource) => resource?.visible !== false)
+      .filter((resource) => (
+        resource?.visible !== false
+        && resource?.updatedTracked === true
+        && timestamp(resource) > 0
+      ))
       .map((resource, index) => ({ resource, index }))
       .sort((left, right) => {
-        const timeDifference = timestamp(right.resource, config) - timestamp(left.resource, config);
+        const timeDifference =
+          timestamp(right.resource) - timestamp(left.resource);
+
         if (timeDifference !== 0) return timeDifference;
 
         const rightId = Number(right.resource.id) || 0;
@@ -235,7 +243,7 @@
     }
 
     if (context.view === "recent") {
-      const date = formatDate(timestamp(resource, config));
+      const date = formatDate(timestamp(resource));
       return date
         ? `<span class="recent-update-date">${escapeHtml(date)}</span>`
         : "";
@@ -705,7 +713,7 @@
 
   function itemMarkup(resource, index, config) {
     const labels = sourceLabels(resource, config);
-    const date = formatDate(timestamp(resource, config));
+    const date = formatDate(timestamp(resource));
 
     return `
       <button class="recent-update-item" type="button"
