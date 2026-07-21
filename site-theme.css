@@ -3222,3 +3222,227 @@ body.site-transfer-confirm-open {
     max-height: calc(100dvh - 22px);
   }
 }
+
+
+/* ==========================================================
+   Cloud-drive action button order and CTA animation
+   Open drive: left / blue animated
+   Copy link: right / orange static
+   ========================================================== */
+
+.site-transfer-optimized .all-links-actions,
+.all-links-card .all-links-actions {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  gap: 10px !important;
+  align-items: stretch !important;
+}
+
+/* Open-drive button is always on the left. */
+.site-transfer-optimized .all-links-open,
+.all-links-card .all-links-open {
+  position: relative !important;
+  order: 1 !important;
+  isolation: isolate;
+  min-width: 0 !important;
+  min-height: 48px !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(46, 126, 244, .20) !important;
+  border-radius: 13px !important;
+  color: #fff !important;
+  background:
+    linear-gradient(
+      135deg,
+      #3b91ff 0%,
+      #176fe5 52%,
+      #2d82f4 100%
+    ) !important;
+  box-shadow:
+    0 10px 23px rgba(31, 113, 232, .28),
+    inset 0 1px 0 rgba(255, 255, 255, .22) !important;
+  font-size: 13px !important;
+  font-weight: 950 !important;
+  text-align: center !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation:
+    site-open-drive-breathe 1.85s ease-in-out infinite !important;
+  transform: translateZ(0);
+}
+
+/* Moving highlight draws attention without changing button behavior. */
+.site-transfer-optimized .all-links-open::before,
+.all-links-card .all-links-open::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: -65%;
+  bottom: -65%;
+  left: -55%;
+  width: 34%;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, .36),
+      transparent
+    );
+  transform: skewX(-18deg);
+  animation:
+    site-open-drive-shine 2.35s ease-in-out infinite;
+}
+
+.site-transfer-optimized .all-links-open:hover,
+.all-links-card .all-links-open:hover {
+  background:
+    linear-gradient(
+      135deg,
+      #4aa0ff 0%,
+      #0f68de 55%,
+      #237cf1 100%
+    ) !important;
+  box-shadow:
+    0 13px 28px rgba(31, 113, 232, .34),
+    inset 0 1px 0 rgba(255, 255, 255, .26) !important;
+  transform: translateY(-1px);
+}
+
+.site-transfer-optimized .all-links-open:active,
+.all-links-card .all-links-open:active {
+  transform: scale(.985);
+}
+
+/* Copy button is always on the right and remains orange/static. */
+.site-transfer-optimized .all-links-copy,
+.all-links-card .all-links-copy {
+  order: 2 !important;
+  min-width: 0 !important;
+  min-height: 48px !important;
+  overflow: hidden !important;
+  border: 0 !important;
+  border-radius: 13px !important;
+  color: #fff !important;
+  background:
+    linear-gradient(
+      135deg,
+      #ff685f,
+      #ff8a63
+    ) !important;
+  box-shadow:
+    0 8px 17px rgba(255, 105, 94, .17) !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  text-align: center !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation: none !important;
+  transform: none;
+}
+
+.site-transfer-optimized .all-links-copy::before,
+.site-transfer-optimized .all-links-copy::after,
+.all-links-card .all-links-copy::before,
+.all-links-card .all-links-copy::after {
+  animation: none !important;
+}
+
+/* Once opened, preserve the existing green completion state and stop motion. */
+.site-transfer-optimized .all-links-open.opened,
+.all-links-card .all-links-open.opened {
+  border-color: rgba(36, 125, 81, .12) !important;
+  color: #247d51 !important;
+  background: #e8f8ef !important;
+  box-shadow: none !important;
+  animation: none !important;
+}
+
+.site-transfer-optimized .all-links-open.opened::before,
+.all-links-card .all-links-open.opened::before {
+  display: none !important;
+  animation: none !important;
+}
+
+.site-transfer-optimized .all-links-open:disabled,
+.all-links-card .all-links-open:disabled {
+  animation: none !important;
+}
+
+/* Override old recommended-provider one-column layout. */
+.site-transfer-optimized
+.site-recommended-provider
+.all-links-actions {
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1fr) !important;
+}
+
+.site-transfer-optimized
+.site-recommended-provider
+.all-links-open,
+.site-transfer-optimized
+.site-recommended-provider
+.all-links-copy {
+  min-height: 48px !important;
+  font-size: 12px !important;
+}
+
+@keyframes site-open-drive-breathe {
+  0%,
+  100% {
+    box-shadow:
+      0 9px 20px rgba(31, 113, 232, .25),
+      0 0 0 0 rgba(51, 139, 255, .20),
+      inset 0 1px 0 rgba(255, 255, 255, .22);
+  }
+
+  50% {
+    box-shadow:
+      0 13px 28px rgba(31, 113, 232, .36),
+      0 0 0 6px rgba(51, 139, 255, 0),
+      inset 0 1px 0 rgba(255, 255, 255, .28);
+  }
+}
+
+@keyframes site-open-drive-shine {
+  0%,
+  30% {
+    left: -55%;
+    opacity: 0;
+  }
+
+  42% {
+    opacity: 1;
+  }
+
+  70%,
+  100% {
+    left: 125%;
+    opacity: 0;
+  }
+}
+
+@media (max-width: 359px) {
+  .site-transfer-optimized .all-links-actions,
+  .all-links-card .all-links-actions {
+    gap: 7px !important;
+  }
+
+  .site-transfer-optimized .all-links-open,
+  .site-transfer-optimized .all-links-copy,
+  .all-links-card .all-links-open,
+  .all-links-card .all-links-copy {
+    min-height: 44px !important;
+    padding-inline: 8px !important;
+    font-size: 11px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-transfer-optimized .all-links-open,
+  .all-links-card .all-links-open,
+  .site-transfer-optimized .all-links-open::before,
+  .all-links-card .all-links-open::before {
+    animation: none !important;
+  }
+}

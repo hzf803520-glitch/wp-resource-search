@@ -1591,7 +1591,7 @@ async function serveStatic(req, res, url) {
       const recentUpdatesScript = '<script src="/recent-updates-config.js?v=20260720-3"></script>';
       const yearConfigScript = '<script src="/year-config.js?v=20260720-1"></script>';
       const siteOptimizationScript = '<script src="/site-optimization.js?v=20260721-daily-transfer-7"></script>';
-      const siteThemeStyle = '<link rel="stylesheet" href="/site-theme.css?v=20260721-native-dialog-6">';
+      const siteThemeStyle = '<link rel="stylesheet" href="/site-theme.css?v=20260721-drive-button-8">';
       const scripts = [
         !html.includes("/notice-config.js") ? noticeScript : "",
         ["/index.html", "/search.html"].includes(pathname) && !html.includes("/all-links-modal.js")
