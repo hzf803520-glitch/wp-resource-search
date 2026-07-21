@@ -1875,18 +1875,60 @@
     actions.insertAdjacentElement("afterend", steps);
   }
 
+  function transferDayStamp(date = new Date()) {
+    const year = date.getFullYear();
+    const month = String(
+      date.getMonth() + 1
+    ).padStart(2, "0");
+    const day = String(
+      date.getDate()
+    ).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+  }
+
+  function storedTransferDay(value) {
+    const normalized = normalize(value);
+
+    if (!normalized) return "";
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+      return normalized;
+    }
+
+    const parsed = new Date(normalized);
+
+    return Number.isNaN(parsed.getTime())
+      ? ""
+      : transferDayStamp(parsed);
+  }
+
   function transferConfirmKey(resourceId, sourceLabel) {
     return `site-transfer-confirm:${resourceId}:${sourceLabel}`;
   }
 
   function alreadyConfirmed(resourceId, sourceLabel) {
-    try { return Boolean(localStorage.getItem(transferConfirmKey(resourceId, sourceLabel))); }
-    catch { return false; }
+    try {
+      const stored = localStorage.getItem(
+        transferConfirmKey(resourceId, sourceLabel)
+      );
+
+      return (
+        storedTransferDay(stored)
+        === transferDayStamp()
+      );
+    } catch {
+      return false;
+    }
   }
 
   function rememberConfirmed(resourceId, sourceLabel) {
-    try { localStorage.setItem(transferConfirmKey(resourceId, sourceLabel), new Date().toISOString()); }
-    catch {}
+    try {
+      localStorage.setItem(
+        transferConfirmKey(resourceId, sourceLabel),
+        transferDayStamp()
+      );
+    } catch {}
   }
 
   function transferFailedKey(resourceId, sourceLabel) {
@@ -1895,10 +1937,13 @@
 
   function alreadyFailed(resourceId, sourceLabel) {
     try {
-      return Boolean(
-        localStorage.getItem(
-          transferFailedKey(resourceId, sourceLabel)
-        )
+      const stored = localStorage.getItem(
+        transferFailedKey(resourceId, sourceLabel)
+      );
+
+      return (
+        storedTransferDay(stored)
+        === transferDayStamp()
       );
     } catch {
       return false;
@@ -1909,7 +1954,7 @@
     try {
       localStorage.setItem(
         transferFailedKey(resourceId, sourceLabel),
-        new Date().toISOString()
+        transferDayStamp()
       );
     } catch {}
   }
@@ -2197,7 +2242,7 @@
         <div class="site-transfer-confirm-notice">
           ${
             wasConfirmed
-              ? "请确认是否完成✅网盘文件的转存。本设备此前已经记录过，本次不会重复计数。"
+              ? "请确认是否完成✅网盘文件的转存。本设备当天已经记录过，本次不会重复计数。"
               : "请确认是否完成✅网盘文件的转存。"
           }
         </div>
