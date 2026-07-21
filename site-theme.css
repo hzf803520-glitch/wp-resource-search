@@ -2278,3 +2278,256 @@ body.site-transfer-modal-open .qr-promo-floating {
     font-size: 16px;
   }
 }
+
+
+/* ==========================================================
+   Resource card full-copy responsive fix
+   Keeps titles and metadata complete without changing behavior.
+   ========================================================== */
+
+:where(
+  .resource-card,
+  .resource-item,
+  .search-result-item,
+  .recent-update-item,
+  button[data-resource-id],
+  article[data-resource-id],
+  li[data-resource-id]
+) {
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+}
+
+:where(
+  .resource-card,
+  .resource-item,
+  .search-result-item,
+  .recent-update-item,
+  button[data-resource-id],
+  article[data-resource-id],
+  li[data-resource-id]
+) > * {
+  min-width: 0 !important;
+}
+
+/* Resource titles: show the complete title and wrap naturally. */
+:where(
+  .resource-card,
+  .resource-item,
+  .search-result-item,
+  .recent-update-item,
+  button[data-resource-id],
+  article[data-resource-id],
+  li[data-resource-id]
+) :where(
+  h1,
+  h2,
+  h3,
+  h4,
+  [class*="title"]
+) {
+  display: block !important;
+  width: auto !important;
+  max-width: 100% !important;
+  max-height: none !important;
+  overflow: visible !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  text-overflow: clip !important;
+  -webkit-line-clamp: unset !important;
+  line-clamp: unset !important;
+}
+
+/* Metadata rows can wrap to additional lines instead of clipping. */
+:where(
+  .resource-card,
+  .resource-item,
+  .search-result-item,
+  .recent-update-item,
+  button[data-resource-id],
+  article[data-resource-id],
+  li[data-resource-id]
+) :where(
+  .recent-update-meta,
+  [class*="resource-meta"],
+  [class*="item-meta"],
+  [class*="card-meta"],
+  [class*="tag-row"],
+  [class*="tags"],
+  [class*="badge-row"]
+) {
+  display: flex !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  max-height: none !important;
+  align-items: center !important;
+  align-content: flex-start !important;
+  flex-wrap: wrap !important;
+  gap: 5px 6px !important;
+  overflow: visible !important;
+  padding-right: 18px !important;
+  white-space: normal !important;
+}
+
+/* Each label stays complete; when space is insufficient it moves as a unit. */
+:where(
+  .resource-card,
+  .resource-item,
+  .search-result-item,
+  .recent-update-item,
+  button[data-resource-id],
+  article[data-resource-id],
+  li[data-resource-id]
+) :where(
+  .recent-update-meta,
+  [class*="resource-meta"],
+  [class*="item-meta"],
+  [class*="card-meta"],
+  [class*="tag-row"],
+  [class*="tags"],
+  [class*="badge-row"]
+) > :where(
+  span,
+  small,
+  em,
+  strong,
+  b
+) {
+  width: auto !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  flex: 0 0 auto !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+  text-overflow: clip !important;
+}
+
+/* Remove old truncation from common resource badges. */
+:where(
+  .resource-card,
+  .resource-item,
+  .search-result-item,
+  .recent-update-item,
+  button[data-resource-id],
+  article[data-resource-id],
+  li[data-resource-id]
+) :where(
+  [class*="category"],
+  [class*="source"],
+  [class*="platform"],
+  [class*="provider"],
+  [class*="rating"],
+  [class*="heat"],
+  [class*="status"],
+  [class*="badge"],
+  [class*="tag"]
+) {
+  max-width: none !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+/* The status remains compact but is never cut off. */
+.site-status-inline-slot {
+  width: auto !important;
+  max-width: none !important;
+  flex: 0 0 auto !important;
+  overflow: visible !important;
+}
+
+.site-status-inline-slot > .site-resource-status {
+  width: auto !important;
+  max-width: none !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: nowrap !important;
+}
+
+/* Leave room for the right-hand arrow and avoid overlapping content. */
+:where(
+  .resource-card,
+  .resource-item,
+  .search-result-item,
+  .recent-update-item,
+  button[data-resource-id],
+  article[data-resource-id],
+  li[data-resource-id]
+) :where(
+  .recent-update-content,
+  [class*="content"],
+  [class*="copy"],
+  [class*="info"]
+) {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: visible !important;
+}
+
+/* Mainstream phones */
+@media (max-width: 767px) {
+  :where(
+    .resource-card,
+    .resource-item,
+    .search-result-item,
+    .recent-update-item,
+    button[data-resource-id],
+    article[data-resource-id],
+    li[data-resource-id]
+  ) {
+    padding-top: 11px !important;
+    padding-bottom: 11px !important;
+  }
+
+  :where(
+    .resource-card,
+    .resource-item,
+    .search-result-item,
+    .recent-update-item,
+    button[data-resource-id],
+    article[data-resource-id],
+    li[data-resource-id]
+  ) :where(
+    .recent-update-meta,
+    [class*="resource-meta"],
+    [class*="item-meta"],
+    [class*="card-meta"],
+    [class*="tag-row"],
+    [class*="tags"],
+    [class*="badge-row"]
+  ) {
+    gap: 5px !important;
+    padding-right: 14px !important;
+  }
+}
+
+/* Very narrow devices */
+@media (max-width: 359px) {
+  :where(
+    .resource-card,
+    .resource-item,
+    .search-result-item,
+    .recent-update-item,
+    button[data-resource-id],
+    article[data-resource-id],
+    li[data-resource-id]
+  ) :where(
+    .recent-update-meta,
+    [class*="resource-meta"],
+    [class*="item-meta"],
+    [class*="card-meta"],
+    [class*="tag-row"],
+    [class*="tags"],
+    [class*="badge-row"]
+  ) > :where(
+    span,
+    small,
+    em,
+    strong,
+    b
+  ) {
+    font-size: 9px !important;
+  }
+}
