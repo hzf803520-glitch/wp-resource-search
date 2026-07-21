@@ -499,7 +499,25 @@
         }
       }
 
-      .site-category-count {
+      [data-site-category-stats] {
+        display: flex;
+        max-width: 100%;
+        align-items: center;
+        gap: 5px 10px;
+        overflow-x: auto;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      [data-site-category-stats]::-webkit-scrollbar {
+        display: none;
+      }
+
+      [data-site-category-stats] > * {
+        flex: 0 0 auto;
+      }
+
+      [data-site-category-stats] .site-category-count {
         display: inline-grid;
         min-width: 18px;
         height: 18px;
@@ -516,21 +534,65 @@
         pointer-events: none;
       }
 
-      button[aria-pressed="true"] > .site-category-count,
-      .active > .site-category-count,
-      .selected > .site-category-count {
+      .site-back-to-top {
+        position: fixed;
+        z-index: 8500;
+        right: max(14px, env(safe-area-inset-right));
+        bottom: max(82px, calc(env(safe-area-inset-bottom) + 70px));
+        display: grid;
+        width: 42px;
+        height: 42px;
+        place-items: center;
+        opacity: 0;
+        visibility: hidden;
+        border: 1px solid rgba(230, 83, 241, .16);
+        border-radius: 14px;
         color: #fff;
-        background: rgba(255,255,255,.26);
+        background: linear-gradient(145deg, #e653f1, #ad4bea);
+        box-shadow: 0 12px 27px rgba(169, 75, 234, .22);
+        font-size: 20px;
+        font-weight: 900;
+        cursor: pointer;
+        transform: translateY(12px);
+        transition:
+          opacity .18s ease,
+          visibility .18s ease,
+          transform .18s ease;
+      }
+
+      .site-back-to-top.show {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+      }
+
+      body.site-transfer-modal-open .site-back-to-top,
+      body.qr-promo-open .site-back-to-top {
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+
+      .site-image-fallback {
+        object-fit: cover !important;
+        background: #f1f3f5;
       }
 
       @media (max-width: 359px) {
-        .site-category-count {
+        [data-site-category-stats] .site-category-count {
           min-width: 16px;
           height: 16px;
           margin-left: 3px;
           padding-inline: 4px;
           font-size: 8px;
           line-height: 16px;
+        }
+
+        .site-back-to-top {
+          right: max(10px, env(safe-area-inset-right));
+          width: 38px;
+          height: 38px;
+          border-radius: 12px;
         }
       }
     `;
@@ -950,62 +1012,264 @@
     ])];
   }
 
+  function isHomePage() {
+    return ["/", "/index.html"].includes(location.pathname);
+  }
+
+  function directCategoryLabel(element, labels) {
+    const clone = element.cloneNode(true);
+
+    clone.querySelectorAll(
+      "[data-site-category-count]"
+    ).forEach((badge) => badge.remove());
+
+    const text = normalize(clone.textContent)
+      .replace(/\s+\d+\s*$/, "")
+      .trim();
+
+    return labels.find((label) => text === label) || "";
+  }
+
+  function homepageStatsCandidate(labels) {
+    if (!isHomePage()) return null;
+
+    const excluded =
+      /全部分类|全部网盘|默认|最热|评分|年份|热门资源|最近更新/;
+
+    const candidates = [
+      ...document.querySelectorAll("nav,section,ul,div")
+    ].map((container) => {
+      if (container.closest("#adminView")) return null;
+      if (container.closest("#allCloudLinksModal")) return null;
+      if (container.closest("#qrPromoModal")) return null;
+      if (container.querySelector("[data-resource-id]")) return null;
+      if (excluded.test(normalize(container.textContent))) return null;
+
+      const children = [...container.children].filter((child) => {
+        if (child.hidden) return false;
+        const style = getComputedStyle(child);
+        return style.display !== "none";
+      });
+
+      if (children.length < 3 || children.length > 12) return null;
+
+      const matches = children
+        .map((child) => ({
+          child,
+          label: directCategoryLabel(child, labels)
+        }))
+        .filter((entry) => entry.label);
+
+      if (matches.length < 3) return null;
+      if (matches.length / children.length < 0.55) return null;
+
+      const rect = container.getBoundingClientRect();
+      if (rect.width < 180 || rect.height > 150) return null;
+
+      return {
+        container,
+        matches,
+        score:
+          matches.length * 100
+          - children.length * 3
+          - Math.round(rect.height)
+      };
+    }).filter(Boolean);
+
+    candidates.sort((left, right) => right.score - left.score);
+    return candidates[0] || null;
+  }
+
+  function removeLegacyCategoryNumbers(item, label) {
+    item.querySelectorAll(
+      ":scope > [data-site-category-count]"
+    ).forEach((badge, index) => {
+      if (index > 0) badge.remove();
+    });
+
+    // Remove old hard-coded numeric child elements.
+    [...item.children].forEach((child) => {
+      if (
+        !child.matches("[data-site-category-count]")
+        && /^\d+$/.test(normalize(child.textContent))
+        && child.children.length === 0
+      ) {
+        child.remove();
+      }
+    });
+
+    // Remove a trailing fixed number from a simple text node such as “电影 8”.
+    [...item.childNodes].forEach((node) => {
+      if (node.nodeType !== Node.TEXT_NODE) return;
+
+      const value = node.textContent || "";
+      const cleaned = value.replace(/\s+\d+\s*$/, "");
+
+      if (
+        cleaned !== value
+        && normalize(item.textContent).startsWith(label)
+      ) {
+        node.textContent = cleaned;
+      }
+    });
+  }
+
   function updateCategoryCounts() {
+    // First remove badges accidentally inserted by an older version.
+    if (!isHomePage()) {
+      document.querySelectorAll(
+        "[data-site-category-count]"
+      ).forEach((badge) => badge.remove());
+
+      document.querySelectorAll(
+        "[data-site-category-stats]"
+      ).forEach((container) => {
+        container.removeAttribute("data-site-category-stats");
+      });
+      return;
+    }
+
     if (!config || !Array.isArray(config.resources)) return;
 
     const counts = categoryCountMap();
     const labels = categoryLabels();
+    const candidate = homepageStatsCandidate(labels);
+    const selectedContainer = candidate?.container || null;
 
     document.querySelectorAll(
-      "button,a,[role='button'],span"
-    ).forEach((element) => {
-      if (element.closest("#adminView")) return;
-      if (element.closest("#allCloudLinksModal")) return;
-      if (element.closest("#qrPromoModal")) return;
+      "[data-site-category-count]"
+    ).forEach((badge) => {
+      if (!selectedContainer?.contains(badge)) {
+        badge.remove();
+      }
+    });
 
-      const existing = element.querySelector(
+    document.querySelectorAll(
+      "[data-site-category-stats]"
+    ).forEach((container) => {
+      if (container !== selectedContainer) {
+        container.removeAttribute("data-site-category-stats");
+      }
+    });
+
+    if (!candidate) return;
+
+    selectedContainer.dataset.siteCategoryStats = "true";
+
+    candidate.matches.forEach(({ child, label }) => {
+      removeLegacyCategoryNumbers(child, label);
+
+      let badge = child.querySelector(
         ":scope > [data-site-category-count]"
       );
-
-      const rawText = normalize(
-        [...element.childNodes]
-          .filter((node) => node.nodeType === Node.TEXT_NODE)
-          .map((node) => node.textContent)
-          .join(" ")
-      );
-
-      const fullText = normalize(element.textContent);
-      const label = labels.find((item) => (
-        rawText === item
-        || fullText === item
-        || fullText.replace(/\s+\d+$/, "") === item
-      ));
-
-      if (!label) {
-        existing?.remove();
-        return;
-      }
-
-      const count = counts.get(label) || 0;
-      let badge = existing;
 
       if (!badge) {
         badge = document.createElement("span");
         badge.dataset.siteCategoryCount = "true";
         badge.className = "site-category-count";
-        element.appendChild(badge);
+        child.appendChild(badge);
       }
 
-      badge.textContent = String(count);
+      const count = counts.get(label) || 0;
+      if (badge.textContent !== String(count)) {
+        badge.textContent = String(count);
+      }
+
       badge.setAttribute("aria-label", `${label}共${count}条`);
     });
   }
+
+  function installBackToTop() {
+    if (document.getElementById("siteBackToTop")) return;
+
+    const button = document.createElement("button");
+    button.id = "siteBackToTop";
+    button.className = "site-back-to-top";
+    button.type = "button";
+    button.setAttribute("aria-label", "回到顶部");
+    button.title = "回到顶部";
+    button.textContent = "↑";
+    document.body.appendChild(button);
+
+    const update = () => {
+      button.classList.toggle(
+        "show",
+        window.scrollY > Math.max(550, window.innerHeight * 0.75)
+      );
+    };
+
+    button.addEventListener("click", () => {
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth"
+      });
+    });
+
+    window.addEventListener("scroll", update, {
+      passive: true
+    });
+    update();
+  }
+
+  function imageFallbackDataUrl() {
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="320" height="420">
+        <defs>
+          <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+            <stop stop-color="#f4f1f8"/>
+            <stop offset="1" stop-color="#edf4f5"/>
+          </linearGradient>
+        </defs>
+        <rect width="100%" height="100%" rx="24" fill="url(#g)"/>
+        <circle cx="160" cy="175" r="42" fill="#ffffff" opacity=".9"/>
+        <path d="M140 176l14 14 28-32" fill="none" stroke="#c15be8"
+          stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="160" y="252" text-anchor="middle" font-family="sans-serif"
+          font-size="18" fill="#7d8794">资源图片</text>
+      </svg>
+    `;
+
+    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+  }
+
+  function optimizeImages() {
+    const fallback = imageFallbackDataUrl();
+
+    document.querySelectorAll("img").forEach((image, index) => {
+      if (image.closest("#adminView")) return;
+
+      if (!image.hasAttribute("decoding")) {
+        image.decoding = "async";
+      }
+
+      if (
+        index > 1
+        && !image.hasAttribute("loading")
+      ) {
+        image.loading = "lazy";
+      }
+
+      if (image.dataset.siteImageHandled === "true") return;
+      image.dataset.siteImageHandled = "true";
+
+      image.addEventListener("error", () => {
+        if (image.dataset.siteFallbackApplied === "true") return;
+
+        image.dataset.siteFallbackApplied = "true";
+        image.classList.add("site-image-fallback");
+        image.src = fallback;
+      });
+    });
+  }
+
 
   function schedulePublicRender() {
     clearTimeout(publicRenderTimer);
     publicRenderTimer = setTimeout(() => {
       applyStatusBadges();
       updateCategoryCounts();
+      optimizeImages();
+      installBackToTop();
       enhanceResourceCards();
       installHomeValueStrip();
       enhanceLinksModal();
