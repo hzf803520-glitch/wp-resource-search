@@ -2531,3 +2531,13 @@ body.site-transfer-modal-open .qr-promo-floating {
     font-size: 9px !important;
   }
 }
+
+.site-transfer-confirm-panel{grid-template-columns:42px minmax(0,1fr)!important}
+.site-transfer-confirm-actions{grid-column:1/-1;display:grid;grid-template-columns:1.25fr 1fr 1fr;gap:7px;width:100%}
+.site-transfer-confirm-actions button{min-height:38px!important;padding:0 10px!important}
+.site-transfer-confirm-actions button:first-child{color:#fff!important;background:linear-gradient(135deg,#32c47a,#1fae69)!important}
+.site-transfer-confirm-actions button:nth-child(2){color:#d05252!important;background:#fff0f0!important}
+.site-transfer-confirm-actions button:nth-child(3){color:#8c4dcc!important;background:#f7edff!important}
+.site-transfer-confirm-actions button:disabled{opacity:.58;cursor:default}
+.site-transfer-data-row{grid-template-columns:minmax(0,1fr) 240px 70px!important}
+@media(max-width:700px){.site-transfer-confirm-actions{grid-template-columns:1fr 1fr}.site-transfer-confirm-actions button:last-child{grid-column:1/-1}.site-transfer-data-row{grid-template-columns:1fr!important}}

@@ -72,6 +72,9 @@ function defaultSiteOps() {
       searches: {},
       resources: {},
       sources: {},
+      transferOpens: {},
+      transferConfirms: {},
+      transferFailures: {},
       sorts: {},
       qr: { count: 0, lastAt: "" }
     },
@@ -153,6 +156,9 @@ function normalizeSiteOpsStore(value) {
       searches: normalizedMetricMap(value?.stats?.searches),
       resources: normalizedMetricMap(value?.stats?.resources),
       sources: normalizedMetricMap(value?.stats?.sources),
+      transferOpens: normalizedMetricMap(value?.stats?.transferOpens),
+      transferConfirms: normalizedMetricMap(value?.stats?.transferConfirms),
+      transferFailures: normalizedMetricMap(value?.stats?.transferFailures),
       sorts: normalizedMetricMap(value?.stats?.sorts),
       qr: {
         count: Math.max(0, Math.min(999999999, Number(value?.stats?.qr?.count) || 0)),
@@ -927,6 +933,21 @@ function recordSiteEvent(body) {
   if (type === "source_open" && sourceLabel) {
     bumpMetric(siteOpsStore.stats.sources, sourceLabel);
     siteOpsStore.stats.sources = pruneMetricMap(siteOpsStore.stats.sources, 100);
+    if (resourceId) {
+      const resource = resourceForOps(resourceId);
+      const metricKey = `${resourceId}::${sourceLabel}`;
+      bumpMetric(siteOpsStore.stats.transferOpens, metricKey, resource?.title || body?.title);
+      siteOpsStore.stats.transferOpens = pruneMetricMap(siteOpsStore.stats.transferOpens, 1000);
+    }
+    return true;
+  }
+
+  if (["transfer_confirm", "transfer_failed"].includes(type) && resourceId && sourceLabel) {
+    const resource = resourceForOps(resourceId);
+    const metricKey = `${resourceId}::${sourceLabel}`;
+    const mapName = type === "transfer_confirm" ? "transferConfirms" : "transferFailures";
+    bumpMetric(siteOpsStore.stats[mapName], metricKey, resource?.title || body?.title);
+    siteOpsStore.stats[mapName] = pruneMetricMap(siteOpsStore.stats[mapName], 1000);
     return true;
   }
 
@@ -1237,6 +1258,9 @@ async function handleApi(req, res, url) {
       searches: {},
       resources: {},
       sources: {},
+      transferOpens: {},
+      transferConfirms: {},
+      transferFailures: {},
       sorts: {},
       qr: { count: 0, lastAt: "" }
     };
@@ -1462,8 +1486,8 @@ async function serveStatic(req, res, url) {
       const qrPromoScript = '<script src="/qr-promo-config.js?v=20260719-1"></script>';
       const recentUpdatesScript = '<script src="/recent-updates-config.js?v=20260720-3"></script>';
       const yearConfigScript = '<script src="/year-config.js?v=20260720-1"></script>';
-      const siteOptimizationScript = '<script src="/site-optimization.js?v=20260720-28"></script>';
-      const siteThemeStyle = '<link rel="stylesheet" href="/site-theme.css?v=20260720-18">';
+      const siteOptimizationScript = '<script src="/site-optimization.js?v=20260721-transfer-1"></script>';
+      const siteThemeStyle = '<link rel="stylesheet" href="/site-theme.css?v=20260721-transfer-1">';
       const scripts = [
         !html.includes("/notice-config.js") ? noticeScript : "",
         ["/index.html", "/search.html"].includes(pathname) && !html.includes("/all-links-modal.js")

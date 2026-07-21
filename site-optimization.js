@@ -1845,110 +1845,76 @@
     actions.insertAdjacentElement("afterend", steps);
   }
 
-  function revealAfterOpenPrompt(modal) {
-    let panel = modal.querySelector("[data-site-after-open]");
+  function transferConfirmKey(resourceId, sourceLabel) {
+    return `site-transfer-confirm:${resourceId}:${sourceLabel}`;
+  }
 
+  function alreadyConfirmed(resourceId, sourceLabel) {
+    try { return Boolean(localStorage.getItem(transferConfirmKey(resourceId, sourceLabel))); }
+    catch { return false; }
+  }
+
+  function rememberConfirmed(resourceId, sourceLabel) {
+    try { localStorage.setItem(transferConfirmKey(resourceId, sourceLabel), new Date().toISOString()); }
+    catch {}
+  }
+
+  function revealAfterOpenPrompt(modal, resource, sourceLabel) {
+    let panel = modal.querySelector("[data-site-after-open]");
     if (!panel) {
       panel = document.createElement("section");
-      panel.className = "site-after-open-panel";
+      panel.className = "site-after-open-panel site-transfer-confirm-panel";
       panel.dataset.siteAfterOpen = "true";
       panel.innerHTML = `
-        <span class="site-after-open-icon">🔔</span>
+        <span class="site-after-open-icon">💾</span>
         <span class="site-after-open-copy">
-          <strong>已经打开网盘？</strong>
-          <small>加入资源群，接收后续更新与失效补链</small>
+          <strong>是否已经保存到自己的网盘？</strong>
+          <small>选择结果后，后台会记录转存转化数据</small>
         </span>
-        <button type="button">加入群聊</button>
+        <div class="site-transfer-confirm-actions">
+          <button type="button" data-transfer-confirm>✓ 已完成转存</button>
+          <button type="button" data-transfer-failed>保存失败</button>
+          <button type="button" data-transfer-group>加入群聊</button>
+        </div>
       `;
-
       const closeButton = modal.querySelector(".all-links-bottom-close");
-      if (closeButton) {
-        closeButton.insertAdjacentElement("beforebegin", panel);
-      } else {
-        modal.querySelector(".all-links-body")?.appendChild(panel);
-      }
+      if (closeButton) closeButton.insertAdjacentElement("beforebegin", panel);
+      else modal.querySelector(".all-links-body")?.appendChild(panel);
 
-      panel.querySelector("button")?.addEventListener("click", () => {
-        function closeAllResourceOverlays() {
-          document.querySelectorAll(
-            "#allCloudLinksModal,.all-links-overlay"
-          ).forEach((overlay) => {
-            overlay.hidden = true;
-            overlay.setAttribute("hidden", "");
-            overlay.setAttribute("aria-hidden", "true");
-            overlay.style.display = "none";
-          });
-
-          document.body.classList.remove(
-            "all-links-modal-open",
-            "site-transfer-modal-open"
-          );
-
-          document.documentElement.style.removeProperty("overflow");
-          document.body.style.removeProperty("overflow");
+      panel.querySelector("[data-transfer-confirm]")?.addEventListener("click", (event) => {
+        const id=panel.dataset.resourceId, source=panel.dataset.sourceLabel, title=panel.dataset.resourceTitle;
+        if (!id || !source) return;
+        if (!alreadyConfirmed(id, source)) {
+          sendEvent("transfer_confirm", {resourceId:id, sourceLabel:source, title});
+          rememberConfirmed(id, source);
         }
-
-        function forceQrModalVisible() {
-          const qrModal = document.getElementById("qrPromoModal");
-          if (!qrModal) return false;
-
-          const dialog = qrModal.querySelector(".qr-promo-dialog");
-          if (!dialog) return false;
-
-          qrModal.hidden = false;
-          qrModal.removeAttribute("hidden");
-          qrModal.removeAttribute("aria-hidden");
-          qrModal.style.removeProperty("display");
-
-          dialog.hidden = false;
-          dialog.removeAttribute("hidden");
-          dialog.style.removeProperty("display");
-          dialog.style.opacity = "1";
-          dialog.style.visibility = "visible";
-          dialog.style.transform = "none";
-
-          document.body.classList.add("qr-promo-open");
-          dialog.querySelector(
-            ".qr-promo-close-icon,.qr-promo-close"
-          )?.focus();
-
-          return true;
-        }
-
-        function openGroupModal() {
-          closeAllResourceOverlays();
-
-          const trigger =
-            document.getElementById("qrPromoFloatingButton")
-            || document.querySelector(".qr-promo-floating");
-
-          if (trigger) {
-            trigger.style.removeProperty("opacity");
-            trigger.style.removeProperty("visibility");
-            trigger.style.removeProperty("pointer-events");
-            trigger.click();
-          }
-
-          requestAnimationFrame(() => {
-            forceQrModalVisible();
-          });
-
-          setTimeout(() => {
-            if (!forceQrModalVisible() && trigger) {
-              trigger.click();
-              setTimeout(forceQrModalVisible, 80);
-            }
-          }, 180);
-        }
-
-        closeAllResourceOverlays();
-
-        requestAnimationFrame(() => {
-          requestAnimationFrame(openGroupModal);
-        });
+        event.currentTarget.textContent="✓ 已记录";
+        event.currentTarget.disabled=true;
+        showToast("已记录用户确认转存");
+      });
+      panel.querySelector("[data-transfer-failed]")?.addEventListener("click", (event) => {
+        const id=panel.dataset.resourceId, source=panel.dataset.sourceLabel, title=panel.dataset.resourceTitle;
+        if (!id || !source || event.currentTarget.disabled) return;
+        sendEvent("transfer_failed", {resourceId:id, sourceLabel:source, title});
+        event.currentTarget.textContent="已记录失败";
+        event.currentTarget.disabled=true;
+        showToast("已记录保存失败");
+      });
+      panel.querySelector("[data-transfer-group]")?.addEventListener("click", () => {
+        modal.hidden=true; modal.setAttribute("hidden",""); document.body.classList.remove("all-links-modal-open","site-transfer-modal-open");
+        const trigger=document.getElementById("qrPromoFloatingButton")||document.querySelector(".qr-promo-floating");
+        setTimeout(()=>trigger?.click(),80);
       });
     }
-
+    panel.dataset.resourceId=String(resource.id);
+    panel.dataset.resourceTitle=resource.title||"";
+    panel.dataset.sourceLabel=sourceLabel||"未知网盘";
+    const confirm=panel.querySelector("[data-transfer-confirm]");
+    if (confirm) {
+      const done=alreadyConfirmed(String(resource.id), sourceLabel);
+      confirm.disabled=done; confirm.textContent=done?"✓ 已记录":"✓ 已完成转存";
+    }
+    panel.querySelector("[data-transfer-failed]")?.removeAttribute("disabled");
     panel.classList.add("show");
   }
 
@@ -1957,12 +1923,12 @@
 
     link.dataset.siteTransferBound = "true";
     link.addEventListener("click", () => {
-      sendEvent("source_open", { sourceLabel });
+      sendEvent("source_open", { resourceId: String(resource.id), title: resource.title, sourceLabel });
       link.classList.add("opened");
       link.textContent = "已打开网盘，请完成保存";
 
       setTimeout(() => {
-        revealAfterOpenPrompt(modal);
+        revealAfterOpenPrompt(modal, resource, sourceLabel);
       }, 650);
 
       setTimeout(() => {
@@ -2622,6 +2588,21 @@
     const requests = Array.isArray(ops.requests) ? ops.requests : [];
     const pendingFeedback = feedback.filter((item) => item.status !== "resolved").length;
     const pendingRequests = requests.filter((item) => item.status !== "done").length;
+    const metricTotal = (map) => Object.values(map || {}).reduce((sum,item)=>sum+Number(item?.count||0),0);
+    const transferOpens = ops.stats?.transferOpens || {};
+    const transferConfirms = ops.stats?.transferConfirms || {};
+    const transferFailures = ops.stats?.transferFailures || {};
+    const openTotal = metricTotal(transferOpens);
+    const confirmTotal = metricTotal(transferConfirms);
+    const failureTotal = metricTotal(transferFailures);
+    const confirmRate = openTotal ? `${(confirmTotal/openTotal*100).toFixed(1)}%` : "0%";
+    const transferRows = Object.entries(transferOpens).sort((a,b)=>Number(b[1]?.count||0)-Number(a[1]?.count||0)).slice(0,30).map(([key,item])=>{
+      const source=key.split("::").slice(1).join("::")||"未知网盘";
+      const confirmed=Number(transferConfirms[key]?.count||0);
+      const failed=Number(transferFailures[key]?.count||0);
+      const opened=Number(item?.count||0);
+      return `<div class="site-ops-row site-transfer-data-row"><span><strong>${escapeHtml(item?.title||key.split("::")[0])}</strong><small>${escapeHtml(source)}</small></span><span>打开 ${opened}｜确认 ${confirmed}｜失败 ${failed}</span><span>${opened?(confirmed/opened*100).toFixed(1):"0.0"}%</span></div>`;
+    }).join("");
 
     panel.innerHTML = `
       <div class="site-ops-intro">
@@ -2672,6 +2653,17 @@
       <section class="site-ops-section">
         <div class="site-ops-section-head"><div><h3>用户资源需求</h3><p>搜索无结果时，用户可以直接提交需求。</p></div></div>
         ${requestRows(requests)}
+      </section>
+
+      <section class="site-ops-section">
+        <div class="site-ops-section-head"><div><h3>转存数据</h3><p>“用户确认转存”按浏览器去重，不代表网盘官方验证。</p></div></div>
+        <div class="site-ops-summary site-transfer-summary-grid">
+          <article><small>打开网盘</small><strong>${openTotal}</strong></article>
+          <article><small>用户确认转存</small><strong>${confirmTotal}</strong></article>
+          <article><small>保存失败</small><strong>${failureTotal}</strong></article>
+          <article><small>确认转化率</small><strong>${confirmRate}</strong></article>
+        </div>
+        <div class="site-ops-table">${transferRows || '<div class="site-ops-empty">暂无转存数据</div>'}</div>
       </section>
 
       <section class="site-ops-section">
