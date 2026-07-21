@@ -3141,3 +3141,84 @@ body.site-transfer-confirm-open {
     transform: translateZ(0) !important;
   }
 }
+
+
+/* ==========================================================
+   Native top-layer transfer confirmation dialog
+   ========================================================== */
+
+#siteTransferConfirmOverlay,
+.site-transfer-confirm-overlay {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+.site-transfer-native-dialog {
+  width: min(calc(100% - 32px), 390px);
+  max-width: 390px;
+  max-height: calc(100dvh - 32px);
+  overflow: visible;
+  border: 0;
+  border-radius: 26px;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.site-transfer-native-dialog[open] {
+  display: block !important;
+}
+
+.site-transfer-native-dialog::backdrop {
+  background:
+    radial-gradient(
+      circle at 50% 28%,
+      rgba(231, 91, 230, .18),
+      transparent 38%
+    ),
+    rgba(24, 29, 38, .72);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.site-transfer-native-dialog
+.site-transfer-confirm-dialog {
+  width: 100%;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  margin: 0;
+}
+
+.site-transfer-native-dialog.fallback-open {
+  position: fixed !important;
+  z-index: 2147483646 !important;
+  inset: 50% auto auto 50% !important;
+  display: block !important;
+  transform: translate(-50%, -50%) !important;
+}
+
+.site-transfer-native-dialog.fallback-open::before {
+  content: "";
+  position: fixed;
+  z-index: -1;
+  inset: -100vmax;
+  background: rgba(24, 29, 38, .72);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+body.site-transfer-confirm-open {
+  overflow: hidden !important;
+}
+
+@media (max-width: 359px) {
+  .site-transfer-native-dialog {
+    width: calc(100% - 22px);
+    max-height: calc(100dvh - 22px);
+  }
+
+  .site-transfer-native-dialog
+  .site-transfer-confirm-dialog {
+    max-height: calc(100dvh - 22px);
+  }
+}

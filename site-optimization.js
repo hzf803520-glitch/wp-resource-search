@@ -1915,7 +1915,7 @@
   }
 
   const TRANSFER_PENDING_KEY =
-    "site-transfer-confirm-pending-v1";
+    "site-transfer-confirm-pending-v2";
 
   function savePendingTransferConfirm(resource, sourceLabel) {
     const payload = {
@@ -1944,7 +1944,8 @@
       if (!raw) return null;
 
       const payload = JSON.parse(raw);
-      const age = Date.now() - Number(payload?.createdAt || 0);
+      const age =
+        Date.now() - Number(payload?.createdAt || 0);
 
       if (
         !payload
@@ -1973,448 +1974,13 @@
     } catch {}
   }
 
-  function repairStaleTransferConfirmLock() {
-    const overlay = document.getElementById(
-      "siteTransferConfirmOverlay"
-    );
-    const pending = readPendingTransferConfirm();
-    const locked = Boolean(
-      overlay
-      && overlay.dataset.transferLocked === "true"
-      && overlay.dataset.transferResolved !== "true"
-    );
-
-    if (pending || locked) return false;
-
-    document.body.classList.remove(
-      "site-transfer-confirm-open"
-    );
-
-    if (overlay) {
-      overlay.dataset.transferLocked = "false";
-      overlay.dataset.transferResolved = "true";
-      overlay.classList.remove("show");
-      overlay.hidden = true;
-      overlay.setAttribute("aria-hidden", "true");
-      overlay.removeAttribute("style");
-    }
-
-    document
-      .querySelectorAll(
-        ".all-links-bottom-close[data-transfer-close-locked]"
-      )
-      .forEach((button) => {
-        button.disabled = false;
-        button.removeAttribute(
-          "data-transfer-close-locked"
-        );
-      });
-
-    return true;
-  }
-
-  function pulseTransferConfirmDialog(overlay) {
-    const dialog = overlay?.querySelector(
-      ".site-transfer-confirm-dialog"
-    );
-
-    if (!dialog) return;
-
-    dialog.classList.remove("attention");
-    void dialog.offsetWidth;
-    dialog.classList.add("attention");
-
-    setTimeout(() => {
-      dialog.classList.remove("attention");
-    }, 380);
-  }
-
-  function enforceTransferConfirmLock(overlay) {
-    if (!overlay) return;
-    if (overlay.dataset.transferLocked !== "true") return;
-    if (overlay.dataset.transferResolved === "true") return;
-
-    if (!overlay.isConnected) {
-      document.body.appendChild(overlay);
-    }
-
-    overlay.hidden = false;
-    overlay.removeAttribute("hidden");
-    overlay.setAttribute("aria-hidden", "false");
-    overlay.classList.add("show");
-
-    overlay.style.setProperty(
-      "position",
-      "fixed",
-      "important"
-    );
-    overlay.style.setProperty(
-      "inset",
-      "0",
-      "important"
-    );
-    overlay.style.setProperty(
-      "z-index",
-      "2147483646",
-      "important"
-    );
-    overlay.style.setProperty(
-      "display",
-      "grid",
-      "important"
-    );
-    overlay.style.setProperty(
-      "visibility",
-      "visible",
-      "important"
-    );
-    overlay.style.setProperty(
-      "opacity",
-      "1",
-      "important"
-    );
-    overlay.style.setProperty(
-      "pointer-events",
-      "auto",
-      "important"
-    );
-
-    document.body.classList.add(
-      "site-transfer-confirm-open"
-    );
-  }
-
-  function transferConfirmOverlay() {
-    let overlay = document.getElementById(
-      "siteTransferConfirmOverlay"
-    );
-
-    if (overlay) return overlay;
-
-    overlay = document.createElement("div");
-    overlay.id = "siteTransferConfirmOverlay";
-    overlay.className = "site-transfer-confirm-overlay";
-    overlay.hidden = true;
-    overlay.setAttribute("aria-hidden", "true");
-    overlay.dataset.transferLocked = "false";
-    overlay.dataset.transferResolved = "true";
-
-    overlay.innerHTML = `
-      <section
-        class="site-transfer-confirm-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="siteTransferConfirmTitle"
-        aria-describedby="siteTransferConfirmDescription"
-        tabindex="-1"
-      >
-        <div
-          class="site-transfer-confirm-visual"
-          data-transfer-dialog-icon-wrap
-        >
-          <span
-            class="site-transfer-drive-icon site-transfer-drive-generic"
-            data-transfer-dialog-icon
-          >☁</span>
-        </div>
-
-        <div class="site-transfer-confirm-heading">
-          <small>转存结果确认</small>
-          <h3 id="siteTransferConfirmTitle">
-            是否已经保存到自己的网盘？
-          </h3>
-          <p id="siteTransferConfirmDescription">
-            请选择真实结果后才能继续使用当前页面。
-          </p>
-        </div>
-
-        <div class="site-transfer-confirm-resource">
-          <span>当前资源</span>
-          <strong data-transfer-dialog-title>资源</strong>
-          <small data-transfer-dialog-source>网盘</small>
-        </div>
-
-        <div
-          class="site-transfer-confirm-notice"
-          data-transfer-dialog-notice
-        >
-          请确认是否完成✅网盘文件的转存。
-        </div>
-
-        <div class="site-transfer-confirm-buttons">
-          <button
-            class="site-transfer-confirm-success"
-            type="button"
-            data-transfer-dialog-confirm
-          >
-            <span>✓</span>
-            <b>已完成转存</b>
-          </button>
-
-          <button
-            class="site-transfer-confirm-failed"
-            type="button"
-            data-transfer-dialog-failed
-          >
-            <span>!</span>
-            <b>保存失败</b>
-          </button>
-        </div>
-
-        <p class="site-transfer-confirm-required">
-          点击空白处不会关闭，必须选择以上一项
-        </p>
-      </section>
-    `;
-
-    document.body.appendChild(overlay);
-
-    const blockedPointerEvents = [
-      "pointerdown",
-      "pointerup",
-      "mousedown",
-      "mouseup",
-      "touchstart",
-      "touchend",
-      "click",
-      "dblclick",
-      "auxclick",
-      "contextmenu"
-    ];
-
-    blockedPointerEvents.forEach((eventName) => {
-      document.addEventListener(
-        eventName,
-        (event) => {
-          if (
-            overlay.dataset.transferLocked !== "true"
-            || overlay.dataset.transferResolved === "true"
-          ) {
-            return;
-          }
-
-          const dialog = overlay.querySelector(
-            ".site-transfer-confirm-dialog"
-          );
-
-          if (dialog?.contains(event.target)) return;
-
-          event.preventDefault();
-          event.stopPropagation();
-          event.stopImmediatePropagation();
-
-          enforceTransferConfirmLock(overlay);
-          pulseTransferConfirmDialog(overlay);
-        },
-        true
-      );
-    });
-
-    overlay
-      .querySelector("[data-transfer-dialog-confirm]")
-      ?.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-
-        const id = overlay.dataset.resourceId;
-        const source = overlay.dataset.sourceLabel;
-        const title = overlay.dataset.resourceTitle;
-
-        if (!id || !source) return;
-
-        const duplicate = alreadyConfirmed(id, source);
-
-        if (!duplicate) {
-          sendEvent("transfer_confirm", {
-            resourceId: id,
-            sourceLabel: source,
-            title
-          });
-          rememberConfirmed(id, source);
-        }
-
-        const button = event.currentTarget;
-        button.disabled = true;
-        button.classList.add("selected");
-        button.querySelector("b").textContent =
-          duplicate ? "本设备已经记录" : "转存结果已记录";
-
-        showToast(
-          duplicate
-            ? "本设备已经记录过，不会重复统计"
-            : "已记录用户确认转存"
-        );
-
-        setTimeout(() => {
-          closeTransferConfirmOverlay("confirmed");
-        }, 520);
-      });
-
-    overlay
-      .querySelector("[data-transfer-dialog-failed]")
-      ?.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-
-        const id = overlay.dataset.resourceId;
-        const source = overlay.dataset.sourceLabel;
-        const title = overlay.dataset.resourceTitle;
-
-        if (!id || !source) return;
-
-        const duplicate = alreadyFailed(id, source);
-
-        if (!duplicate) {
-          sendEvent("transfer_failed", {
-            resourceId: id,
-            sourceLabel: source,
-            title
-          });
-          rememberFailed(id, source);
-        }
-
-        const button = event.currentTarget;
-        button.disabled = true;
-        button.classList.add("selected");
-        button.querySelector("b").textContent =
-          duplicate ? "本设备已经记录" : "失败结果已记录";
-
-        showToast(
-          duplicate
-            ? "本设备已经提交过失败结果"
-            : "已记录保存失败"
-        );
-
-        setTimeout(() => {
-          closeTransferConfirmOverlay("failed");
-        }, 520);
-      });
-
-    document.addEventListener(
-      "keydown",
-      (event) => {
-        if (
-          overlay.dataset.transferLocked !== "true"
-          || overlay.dataset.transferResolved === "true"
-        ) {
-          return;
-        }
-
-        if (
-          event.key === "Escape"
-          || event.key === "BrowserBack"
-        ) {
-          event.preventDefault();
-          event.stopPropagation();
-          event.stopImmediatePropagation();
-
-          enforceTransferConfirmLock(overlay);
-          pulseTransferConfirmDialog(overlay);
-          return;
-        }
-
-        if (event.key === "Tab") {
-          const buttons = [
-            ...overlay.querySelectorAll(
-              ".site-transfer-confirm-buttons button:not(:disabled)"
-            )
-          ];
-
-          if (!buttons.length) {
-            event.preventDefault();
-            return;
-          }
-
-          const first = buttons[0];
-          const last = buttons[buttons.length - 1];
-
-          if (
-            event.shiftKey
-            && document.activeElement === first
-          ) {
-            event.preventDefault();
-            last.focus();
-          } else if (
-            !event.shiftKey
-            && document.activeElement === last
-          ) {
-            event.preventDefault();
-            first.focus();
-          }
-        }
-      },
-      true
-    );
-
-    const lockObserver = new MutationObserver(() => {
-      enforceTransferConfirmLock(overlay);
-    });
-
-    lockObserver.observe(overlay, {
-      attributes: true,
-      attributeFilter: [
-        "hidden",
-        "class",
-        "style",
-        "aria-hidden",
-        "data-transfer-locked",
-        "data-transfer-resolved"
-      ]
-    });
-
-    lockObserver.observe(document.body, {
-      attributes: true,
-      attributeFilter: ["class"],
-      childList: true
-    });
-
-    return overlay;
-  }
-
-  function closeTransferConfirmOverlay(result) {
-    const overlay = document.getElementById(
-      "siteTransferConfirmOverlay"
-    );
-
-    if (!overlay) return false;
-
-    if (!["confirmed", "failed"].includes(result)) {
-      enforceTransferConfirmLock(overlay);
-      pulseTransferConfirmDialog(overlay);
-      return false;
-    }
-
-    clearPendingTransferConfirm();
-
-    overlay.dataset.transferResolved = "true";
-    overlay.dataset.transferLocked = "false";
-    overlay.classList.remove("show");
-    overlay.setAttribute("aria-hidden", "true");
-
-    setTimeout(() => {
-      overlay.hidden = true;
-      overlay.removeAttribute("style");
-      document.body.classList.remove(
-        "site-transfer-confirm-open"
-      );
-
-      document
-        .querySelectorAll(
-          ".all-links-bottom-close[data-transfer-close-locked]"
-        )
-        .forEach((button) => {
-          button.disabled = false;
-          button.removeAttribute("data-transfer-close-locked");
-        });
-    }, 190);
-
-    return true;
-  }
-
   function transferDriveIcon(sourceLabel) {
     const value = normalize(sourceLabel).toLowerCase();
 
-    if (value.includes("百度") || value.includes("baidu")) {
+    if (
+      value.includes("百度")
+      || value.includes("baidu")
+    ) {
       return {
         className: "site-transfer-drive-baidu",
         text: "百",
@@ -2425,7 +1991,6 @@
     if (
       value.includes("夸克")
       || value.includes("quark")
-      || value.includes("quark网盘")
     ) {
       return {
         className: "site-transfer-drive-quark",
@@ -2434,11 +1999,7 @@
       };
     }
 
-    if (
-      value.includes("uc")
-      || value.includes("UC")
-      || value.includes("uc网盘")
-    ) {
+    if (value.includes("uc")) {
       return {
         className: "site-transfer-drive-uc",
         text: "UC",
@@ -2477,97 +2038,360 @@
     };
   }
 
-  function revealAfterOpenPrompt(modal, resource, sourceLabel) {
-    savePendingTransferConfirm(
+  function removeAllTransferConfirmLayers() {
+    document
+      .querySelectorAll(
+        "#siteTransferConfirmOverlay,"
+        + "#siteTransferConfirmDialogNative,"
+        + ".site-transfer-confirm-overlay,"
+        + ".site-transfer-native-dialog"
+      )
+      .forEach((element) => {
+        try {
+          if (
+            element instanceof HTMLDialogElement
+            && element.open
+          ) {
+            element.close();
+          }
+        } catch {}
+
+        element.remove();
+      });
+
+    document.body.classList.remove(
+      "site-transfer-confirm-open"
+    );
+
+    document
+      .querySelectorAll(
+        ".all-links-bottom-close"
+        + "[data-transfer-close-locked]"
+      )
+      .forEach((button) => {
+        button.disabled = false;
+        button.removeAttribute(
+          "data-transfer-close-locked"
+        );
+      });
+  }
+
+  function pulseNativeTransferDialog(dialog) {
+    const card = dialog?.querySelector(
+      ".site-transfer-confirm-dialog"
+    );
+
+    if (!card) return;
+
+    card.classList.remove("attention");
+    void card.offsetWidth;
+    card.classList.add("attention");
+
+    setTimeout(() => {
+      card.classList.remove("attention");
+    }, 380);
+  }
+
+  function closeNativeTransferDialog(result) {
+    if (!["confirmed", "failed"].includes(result)) {
+      const dialog = document.getElementById(
+        "siteTransferConfirmDialogNative"
+      );
+      pulseNativeTransferDialog(dialog);
+      return false;
+    }
+
+    clearPendingTransferConfirm();
+
+    const dialog = document.getElementById(
+      "siteTransferConfirmDialogNative"
+    );
+
+    if (dialog) {
+      try {
+        if (dialog.open) dialog.close();
+      } catch {}
+
+      dialog.remove();
+    }
+
+    document.body.classList.remove(
+      "site-transfer-confirm-open"
+    );
+
+    document
+      .querySelectorAll(
+        ".all-links-bottom-close"
+        + "[data-transfer-close-locked]"
+      )
+      .forEach((button) => {
+        button.disabled = false;
+        button.removeAttribute(
+          "data-transfer-close-locked"
+        );
+      });
+
+    return true;
+  }
+
+  function buildNativeTransferDialog(payload) {
+    removeAllTransferConfirmLayers();
+
+    const dialog = document.createElement("dialog");
+    dialog.id = "siteTransferConfirmDialogNative";
+    dialog.className = "site-transfer-native-dialog";
+
+    const driveIcon = transferDriveIcon(
+      payload.sourceLabel
+    );
+
+    const wasConfirmed = alreadyConfirmed(
+      payload.resourceId,
+      payload.sourceLabel
+    );
+
+    dialog.innerHTML = `
+      <section
+        class="site-transfer-confirm-dialog"
+        aria-labelledby="siteTransferConfirmTitle"
+        aria-describedby="siteTransferConfirmDescription"
+      >
+        <div
+          class="site-transfer-confirm-visual"
+          data-drive-type="${escapeHtml(
+            driveIcon.className.replace(
+              "site-transfer-drive-",
+              ""
+            )
+          )}"
+        >
+          <span
+            class="site-transfer-drive-icon ${escapeHtml(
+              driveIcon.className
+            )}"
+            aria-label="${escapeHtml(driveIcon.label)}"
+            title="${escapeHtml(driveIcon.label)}"
+          >${escapeHtml(driveIcon.text)}</span>
+        </div>
+
+        <div class="site-transfer-confirm-heading">
+          <small>转存结果确认</small>
+          <h3 id="siteTransferConfirmTitle">
+            是否已经保存到自己的网盘？
+          </h3>
+          <p id="siteTransferConfirmDescription">
+            请选择真实结果后才能继续使用当前页面。
+          </p>
+        </div>
+
+        <div class="site-transfer-confirm-resource">
+          <span>当前资源</span>
+          <strong>${escapeHtml(
+            payload.resourceTitle || "当前资源"
+          )}</strong>
+          <small>${escapeHtml(
+            payload.sourceLabel || "未知网盘"
+          )}</small>
+        </div>
+
+        <div class="site-transfer-confirm-notice">
+          ${
+            wasConfirmed
+              ? "请确认是否完成✅网盘文件的转存。本设备此前已经记录过，本次不会重复计数。"
+              : "请确认是否完成✅网盘文件的转存。"
+          }
+        </div>
+
+        <div class="site-transfer-confirm-buttons">
+          <button
+            class="site-transfer-confirm-success"
+            type="button"
+            data-transfer-dialog-confirm
+          >
+            <span>✓</span>
+            <b>已完成转存</b>
+          </button>
+
+          <button
+            class="site-transfer-confirm-failed"
+            type="button"
+            data-transfer-dialog-failed
+          >
+            <span>!</span>
+            <b>保存失败</b>
+          </button>
+        </div>
+
+        <p class="site-transfer-confirm-required">
+          点击空白处不会关闭，必须选择以上一项
+        </p>
+      </section>
+    `;
+
+    dialog.addEventListener("cancel", (event) => {
+      event.preventDefault();
+      pulseNativeTransferDialog(dialog);
+    });
+
+    dialog.addEventListener("close", () => {
+      if (readPendingTransferConfirm()) {
+        setTimeout(() => {
+          showNativeTransferDialog(
+            readPendingTransferConfirm(),
+            "unexpected-close"
+          );
+        }, 40);
+      }
+    });
+
+    dialog.addEventListener("pointerdown", (event) => {
+      if (event.target !== dialog) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      pulseNativeTransferDialog(dialog);
+    });
+
+    dialog
+      .querySelector("[data-transfer-dialog-confirm]")
+      ?.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const duplicate = alreadyConfirmed(
+          payload.resourceId,
+          payload.sourceLabel
+        );
+
+        if (!duplicate) {
+          sendEvent("transfer_confirm", {
+            resourceId: payload.resourceId,
+            sourceLabel: payload.sourceLabel,
+            title: payload.resourceTitle
+          });
+
+          rememberConfirmed(
+            payload.resourceId,
+            payload.sourceLabel
+          );
+        }
+
+        const button = event.currentTarget;
+        button.disabled = true;
+        button.classList.add("selected");
+        button.querySelector("b").textContent =
+          duplicate
+            ? "本设备已经记录"
+            : "转存结果已记录";
+
+        showToast(
+          duplicate
+            ? "本设备已经记录过，不会重复统计"
+            : "已记录用户确认转存"
+        );
+
+        setTimeout(() => {
+          closeNativeTransferDialog("confirmed");
+        }, 420);
+      });
+
+    dialog
+      .querySelector("[data-transfer-dialog-failed]")
+      ?.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const duplicate = alreadyFailed(
+          payload.resourceId,
+          payload.sourceLabel
+        );
+
+        if (!duplicate) {
+          sendEvent("transfer_failed", {
+            resourceId: payload.resourceId,
+            sourceLabel: payload.sourceLabel,
+            title: payload.resourceTitle
+          });
+
+          rememberFailed(
+            payload.resourceId,
+            payload.sourceLabel
+          );
+        }
+
+        const button = event.currentTarget;
+        button.disabled = true;
+        button.classList.add("selected");
+        button.querySelector("b").textContent =
+          duplicate
+            ? "本设备已经记录"
+            : "失败结果已记录";
+
+        showToast(
+          duplicate
+            ? "本设备已经提交过失败结果"
+            : "已记录保存失败"
+        );
+
+        setTimeout(() => {
+          closeNativeTransferDialog("failed");
+        }, 420);
+      });
+
+    return dialog;
+  }
+
+  function showNativeTransferDialog(payload, reason) {
+    if (!payload?.resourceId || !payload?.sourceLabel) {
+      removeAllTransferConfirmLayers();
+      return false;
+    }
+
+    const dialog = buildNativeTransferDialog(payload);
+    dialog.dataset.restoreReason =
+      normalize(reason) || "show";
+
+    document.body.appendChild(dialog);
+    document.body.classList.add(
+      "site-transfer-confirm-open"
+    );
+
+    try {
+      if (
+        typeof dialog.showModal === "function"
+      ) {
+        dialog.showModal();
+      } else {
+        dialog.setAttribute("open", "");
+        dialog.classList.add("fallback-open");
+      }
+    } catch {
+      dialog.setAttribute("open", "");
+      dialog.classList.add("fallback-open");
+    }
+
+    requestAnimationFrame(() => {
+      dialog
+        .querySelector(
+          "[data-transfer-dialog-confirm]"
+        )
+        ?.focus({
+          preventScroll: true
+        });
+    });
+
+    return true;
+  }
+
+  function revealAfterOpenPrompt(
+    modal,
+    resource,
+    sourceLabel
+  ) {
+    const payload = savePendingTransferConfirm(
       resource,
       sourceLabel
     );
-
-    const overlay = transferConfirmOverlay();
-
-    overlay.dataset.resourceId = String(resource.id);
-    overlay.dataset.resourceTitle =
-      resource.title || "当前资源";
-    overlay.dataset.sourceLabel =
-      sourceLabel || "未知网盘";
-    overlay.dataset.transferResolved = "false";
-    overlay.dataset.transferLocked = "true";
-
-    const title = overlay.querySelector(
-      "[data-transfer-dialog-title]"
-    );
-    const source = overlay.querySelector(
-      "[data-transfer-dialog-source]"
-    );
-    const notice = overlay.querySelector(
-      "[data-transfer-dialog-notice]"
-    );
-    const icon = overlay.querySelector(
-      "[data-transfer-dialog-icon]"
-    );
-    const iconWrap = overlay.querySelector(
-      "[data-transfer-dialog-icon-wrap]"
-    );
-    const confirm = overlay.querySelector(
-      "[data-transfer-dialog-confirm]"
-    );
-    const failed = overlay.querySelector(
-      "[data-transfer-dialog-failed]"
-    );
-
-    if (title) {
-      title.textContent = resource.title || "当前资源";
-    }
-
-    if (source) {
-      source.textContent = sourceLabel || "未知网盘";
-    }
-
-    const driveIcon = transferDriveIcon(sourceLabel);
-
-    if (icon) {
-      icon.className =
-        `site-transfer-drive-icon ${driveIcon.className}`;
-      icon.textContent = driveIcon.text;
-      icon.setAttribute(
-        "aria-label",
-        driveIcon.label
-      );
-      icon.title = driveIcon.label;
-    }
-
-    if (iconWrap) {
-      iconWrap.dataset.driveType =
-        driveIcon.className.replace(
-          "site-transfer-drive-",
-          ""
-        );
-    }
-
-    const confirmed = alreadyConfirmed(
-      String(resource.id),
-      sourceLabel
-    );
-
-    if (notice) {
-      notice.textContent = confirmed
-        ? "请确认是否完成✅网盘文件的转存。本设备此前已经记录过，本次不会重复计数。"
-        : "请确认是否完成✅网盘文件的转存。";
-    }
-
-    if (confirm) {
-      confirm.disabled = false;
-      confirm.classList.remove("selected");
-      confirm.querySelector("b").textContent =
-        "已完成转存";
-    }
-
-    if (failed) {
-      failed.disabled = false;
-      failed.classList.remove("selected");
-      failed.querySelector("b").textContent =
-        "保存失败";
-    }
 
     modal
       ?.querySelectorAll(".all-links-bottom-close")
@@ -2576,74 +2400,40 @@
         button.dataset.transferCloseLocked = "true";
       });
 
-    enforceTransferConfirmLock(overlay);
-
-    requestAnimationFrame(() => {
-      enforceTransferConfirmLock(overlay);
-      confirm?.focus({
-        preventScroll: true
-      });
-    });
-
-    setTimeout(() => {
-      enforceTransferConfirmLock(overlay);
-    }, 300);
+    return showNativeTransferDialog(
+      payload,
+      "after-open"
+    );
   }
 
+  let transferRestoreTimer = null;
 
   function restorePendingTransferConfirm(reason) {
-    const pending = readPendingTransferConfirm();
+    clearTimeout(transferRestoreTimer);
 
-    if (!pending) {
-      repairStaleTransferConfirmLock();
-      return false;
-    }
+    transferRestoreTimer = setTimeout(() => {
+      const pending = readPendingTransferConfirm();
 
-    const resource = resources().find(
-      (item) => String(item.id) === pending.resourceId
-    ) || {
-      id: pending.resourceId,
-      title: pending.resourceTitle
-    };
+      if (!pending) {
+        removeAllTransferConfirmLayers();
+        return;
+      }
 
-    const modal =
-      document.getElementById("allCloudLinksModal")
-      || document.querySelector(".all-links-overlay");
+      if (
+        document.visibilityState === "hidden"
+      ) {
+        return;
+      }
 
-    revealAfterOpenPrompt(
-      modal,
-      resource,
-      pending.sourceLabel
-    );
-
-    const overlay = transferConfirmOverlay();
-    overlay.dataset.transferRestoreReason =
-      normalize(reason) || "restore";
-
-    enforceTransferConfirmLock(overlay);
-
-    requestAnimationFrame(() => {
-      enforceTransferConfirmLock(overlay);
-
-      overlay
-        .querySelector(
-          ".site-transfer-confirm-dialog"
-        )
-        ?.focus({
-          preventScroll: true
-        });
-    });
-
-    setTimeout(() => {
-      enforceTransferConfirmLock(overlay);
-    }, 80);
-
-    setTimeout(() => {
-      enforceTransferConfirmLock(overlay);
-    }, 320);
+      showNativeTransferDialog(
+        pending,
+        reason || "restore"
+      );
+    }, 70);
 
     return true;
   }
+
 
   function removeLegacyTransferConfirmPanel(modal) {
     modal
@@ -2670,15 +2460,14 @@
       setTimeout(() => {
         if (
           document.visibilityState === "visible"
+          && document.hasFocus()
           && readPendingTransferConfirm()
         ) {
-          revealAfterOpenPrompt(
-            modal,
-            resource,
-            sourceLabel
+          restorePendingTransferConfirm(
+            "link-open-visible"
           );
         }
-      }, 850);
+      }, 900);
 
       setTimeout(() => {
         if (link.isConnected) {
@@ -3644,21 +3433,6 @@
             "visibility-visible"
           );
         }, 60);
-      }
-    });
-
-    window.addEventListener("pagehide", () => {
-      const pending = readPendingTransferConfirm();
-      const overlay = document.getElementById(
-        "siteTransferConfirmOverlay"
-      );
-
-      if (
-        pending
-        && overlay
-        && overlay.dataset.transferResolved !== "true"
-      ) {
-        overlay.dataset.transferLocked = "true";
       }
     });
 
