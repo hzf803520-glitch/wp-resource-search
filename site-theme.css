@@ -3446,3 +3446,383 @@ body.site-transfer-confirm-open {
     animation: none !important;
   }
 }
+
+
+/* ==========================================================
+   Final drive CTA consistency and click-flash removal
+   ========================================================== */
+
+/* Every card keeps the requested left-open/right-copy layout. */
+.site-transfer-optimized
+.site-recommended-provider
+.all-links-actions,
+.site-transfer-optimized
+.site-alternative-provider
+.all-links-actions,
+.site-transfer-optimized
+.all-links-card
+.all-links-actions,
+.all-links-card
+.all-links-actions {
+  display: grid !important;
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1fr) !important;
+  gap: 10px !important;
+}
+
+/* Recommended and alternative open buttons: stable blue CTA. */
+.site-transfer-optimized
+.site-recommended-provider
+.all-links-open,
+.site-transfer-optimized
+.site-alternative-provider
+.all-links-open,
+.site-transfer-optimized
+.all-links-card
+.all-links-open,
+.all-links-card
+.all-links-open {
+  position: relative !important;
+  order: 1 !important;
+  isolation: isolate;
+  min-width: 0 !important;
+  min-height: 48px !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(45, 126, 244, .20) !important;
+  border-radius: 13px !important;
+  color: #fff !important;
+  background:
+    linear-gradient(
+      135deg,
+      #3d94ff 0%,
+      #176fe5 54%,
+      #2c82f4 100%
+    ) !important;
+  box-shadow:
+    0 10px 23px rgba(31, 113, 232, .27),
+    inset 0 1px 0 rgba(255, 255, 255, .22) !important;
+  font-size: 13px !important;
+  font-weight: 950 !important;
+  text-align: center !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation:
+    site-open-drive-soft-glow
+    2.4s
+    ease-in-out
+    infinite !important;
+  transition:
+    transform .12s ease,
+    box-shadow .16s ease !important;
+}
+
+/* Gentle smooth highlight; no sudden color switch. */
+.site-transfer-optimized
+.site-recommended-provider
+.all-links-open::before,
+.site-transfer-optimized
+.site-alternative-provider
+.all-links-open::before,
+.site-transfer-optimized
+.all-links-card
+.all-links-open::before,
+.all-links-card
+.all-links-open::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: -70%;
+  bottom: -70%;
+  left: -50%;
+  width: 30%;
+  pointer-events: none;
+  opacity: .75;
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, .25),
+      transparent
+    );
+  transform: skewX(-18deg);
+  animation:
+    site-open-drive-soft-shine
+    3.2s
+    ease-in-out
+    infinite !important;
+}
+
+/* Clicking only gives a tiny press response; no green/text flash. */
+.site-transfer-optimized
+.site-recommended-provider
+.all-links-open:active,
+.site-transfer-optimized
+.site-alternative-provider
+.all-links-open:active,
+.site-transfer-optimized
+.all-links-card
+.all-links-open:active,
+.all-links-card
+.all-links-open:active {
+  color: #fff !important;
+  background:
+    linear-gradient(
+      135deg,
+      #3d94ff 0%,
+      #176fe5 54%,
+      #2c82f4 100%
+    ) !important;
+  transform: scale(.988) !important;
+}
+
+/* Defensive override if an older script briefly adds .opened. */
+.site-transfer-optimized
+.site-recommended-provider
+.all-links-open.opened,
+.site-transfer-optimized
+.site-alternative-provider
+.all-links-open.opened,
+.site-transfer-optimized
+.all-links-card
+.all-links-open.opened,
+.all-links-card
+.all-links-open.opened {
+  color: #fff !important;
+  background:
+    linear-gradient(
+      135deg,
+      #3d94ff 0%,
+      #176fe5 54%,
+      #2c82f4 100%
+    ) !important;
+  box-shadow:
+    0 10px 23px rgba(31, 113, 232, .27),
+    inset 0 1px 0 rgba(255, 255, 255, .22) !important;
+  animation:
+    site-open-drive-soft-glow
+    2.4s
+    ease-in-out
+    infinite !important;
+}
+
+/* Copy remains right, orange and completely static. */
+.site-transfer-optimized
+.site-recommended-provider
+.all-links-copy,
+.site-transfer-optimized
+.site-alternative-provider
+.all-links-copy,
+.site-transfer-optimized
+.all-links-card
+.all-links-copy,
+.all-links-card
+.all-links-copy {
+  order: 2 !important;
+  min-width: 0 !important;
+  min-height: 48px !important;
+  border: 0 !important;
+  border-radius: 13px !important;
+  color: #fff !important;
+  background:
+    linear-gradient(
+      135deg,
+      #ff685f,
+      #ff8a63
+    ) !important;
+  box-shadow:
+    0 8px 17px rgba(255, 105, 94, .17) !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+}
+
+/* Bottom recommended sticky CTA uses the same blue treatment. */
+.site-transfer-optimized
+.site-transfer-sticky
+a,
+.site-transfer-sticky
+a {
+  position: relative !important;
+  isolation: isolate;
+  min-width: 148px !important;
+  min-height: 44px !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(45, 126, 244, .20) !important;
+  border-radius: 12px !important;
+  color: #fff !important;
+  background:
+    linear-gradient(
+      135deg,
+      #3d94ff 0%,
+      #176fe5 54%,
+      #2c82f4 100%
+    ) !important;
+  box-shadow:
+    0 10px 23px rgba(31, 113, 232, .27),
+    inset 0 1px 0 rgba(255, 255, 255, .22) !important;
+  font-weight: 950 !important;
+  text-decoration: none !important;
+  animation:
+    site-open-drive-soft-glow
+    2.4s
+    ease-in-out
+    infinite !important;
+  transition:
+    transform .12s ease,
+    box-shadow .16s ease !important;
+}
+
+.site-transfer-optimized
+.site-transfer-sticky
+a::before,
+.site-transfer-sticky
+a::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: -70%;
+  bottom: -70%;
+  left: -50%;
+  width: 30%;
+  pointer-events: none;
+  opacity: .75;
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, .25),
+      transparent
+    );
+  transform: skewX(-18deg);
+  animation:
+    site-open-drive-soft-shine
+    3.2s
+    ease-in-out
+    infinite !important;
+}
+
+.site-transfer-optimized
+.site-transfer-sticky
+a:active,
+.site-transfer-sticky
+a:active,
+.site-transfer-optimized
+.site-transfer-sticky
+a.opened,
+.site-transfer-sticky
+a.opened {
+  color: #fff !important;
+  background:
+    linear-gradient(
+      135deg,
+      #3d94ff 0%,
+      #176fe5 54%,
+      #2c82f4 100%
+    ) !important;
+}
+
+.site-transfer-optimized
+.site-transfer-sticky
+a:active,
+.site-transfer-sticky
+a:active {
+  transform: scale(.988) !important;
+}
+
+@keyframes site-open-drive-soft-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 9px 20px rgba(31, 113, 232, .24),
+      inset 0 1px 0 rgba(255, 255, 255, .22);
+  }
+
+  50% {
+    box-shadow:
+      0 12px 25px rgba(31, 113, 232, .32),
+      inset 0 1px 0 rgba(255, 255, 255, .26);
+  }
+}
+
+@keyframes site-open-drive-soft-shine {
+  0%,
+  42% {
+    left: -50%;
+    opacity: 0;
+  }
+
+  52% {
+    opacity: .72;
+  }
+
+  72%,
+  100% {
+    left: 125%;
+    opacity: 0;
+  }
+}
+
+@media (max-width: 359px) {
+  .site-transfer-optimized
+  .site-recommended-provider
+  .all-links-actions,
+  .site-transfer-optimized
+  .site-alternative-provider
+  .all-links-actions,
+  .site-transfer-optimized
+  .all-links-card
+  .all-links-actions,
+  .all-links-card
+  .all-links-actions {
+    gap: 7px !important;
+  }
+
+  .site-transfer-optimized
+  .site-transfer-sticky
+  a,
+  .site-transfer-sticky
+  a {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-transfer-optimized
+  .site-recommended-provider
+  .all-links-open,
+  .site-transfer-optimized
+  .site-alternative-provider
+  .all-links-open,
+  .site-transfer-optimized
+  .all-links-card
+  .all-links-open,
+  .all-links-card
+  .all-links-open,
+  .site-transfer-optimized
+  .site-transfer-sticky
+  a,
+  .site-transfer-sticky
+  a,
+  .site-transfer-optimized
+  .site-recommended-provider
+  .all-links-open::before,
+  .site-transfer-optimized
+  .site-alternative-provider
+  .all-links-open::before,
+  .site-transfer-optimized
+  .all-links-card
+  .all-links-open::before,
+  .all-links-card
+  .all-links-open::before,
+  .site-transfer-optimized
+  .site-transfer-sticky
+  a::before,
+  .site-transfer-sticky
+  a::before {
+    animation: none !important;
+  }
+}

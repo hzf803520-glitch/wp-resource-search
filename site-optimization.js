@@ -2499,9 +2499,6 @@
         sourceLabel
       );
       sendEvent("source_open", { resourceId: String(resource.id), title: resource.title, sourceLabel });
-      link.classList.add("opened");
-      link.textContent = "已打开网盘，请完成保存";
-
       setTimeout(() => {
         if (
           document.visibilityState === "visible"
@@ -2513,13 +2510,6 @@
           );
         }
       }, 900);
-
-      setTimeout(() => {
-        if (link.isConnected) {
-          link.classList.remove("opened");
-          link.textContent = link.dataset.siteOriginalText || "立即打开并转存";
-        }
-      }, 6000);
     });
   }
 
