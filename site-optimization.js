@@ -1914,6 +1914,45 @@
     } catch {}
   }
 
+  function pulseTransferConfirmDialog(overlay) {
+    const dialog = overlay?.querySelector(
+      ".site-transfer-confirm-dialog"
+    );
+
+    if (!dialog) return;
+
+    dialog.classList.remove("attention");
+    void dialog.offsetWidth;
+    dialog.classList.add("attention");
+
+    setTimeout(() => {
+      dialog.classList.remove("attention");
+    }, 380);
+  }
+
+  function enforceTransferConfirmLock(overlay) {
+    if (!overlay) return;
+    if (overlay.dataset.transferLocked !== "true") return;
+    if (overlay.dataset.transferResolved === "true") return;
+
+    if (!overlay.isConnected) {
+      document.body.appendChild(overlay);
+    }
+
+    overlay.hidden = false;
+    overlay.removeAttribute("hidden");
+    overlay.setAttribute("aria-hidden", "false");
+    overlay.classList.add("show");
+    overlay.style.removeProperty("display");
+    overlay.style.removeProperty("visibility");
+    overlay.style.removeProperty("opacity");
+    overlay.style.removeProperty("pointer-events");
+
+    document.body.classList.add(
+      "site-transfer-confirm-open"
+    );
+  }
+
   function transferConfirmOverlay() {
     let overlay = document.getElementById(
       "siteTransferConfirmOverlay"
@@ -1926,6 +1965,8 @@
     overlay.className = "site-transfer-confirm-overlay";
     overlay.hidden = true;
     overlay.setAttribute("aria-hidden", "true");
+    overlay.dataset.transferLocked = "false";
+    overlay.dataset.transferResolved = "true";
 
     overlay.innerHTML = `
       <section
@@ -1934,6 +1975,7 @@
         aria-modal="true"
         aria-labelledby="siteTransferConfirmTitle"
         aria-describedby="siteTransferConfirmDescription"
+        tabindex="-1"
       >
         <div class="site-transfer-confirm-visual">
           <span>💾</span>
@@ -1983,33 +2025,60 @@
         </div>
 
         <p class="site-transfer-confirm-required">
-          必须选择以上一项，弹窗才会关闭
+          点击空白处不会关闭，必须选择以上一项
         </p>
       </section>
     `;
 
     document.body.appendChild(overlay);
 
-    // Clicking the dark background must not dismiss the dialog.
-    overlay.addEventListener("pointerdown", (event) => {
-      if (event.target === overlay) {
-        event.preventDefault();
-        event.stopPropagation();
-        overlay
-          .querySelector(".site-transfer-confirm-dialog")
-          ?.classList.add("attention");
+    const blockedPointerEvents = [
+      "pointerdown",
+      "pointerup",
+      "mousedown",
+      "mouseup",
+      "touchstart",
+      "touchend",
+      "click",
+      "dblclick",
+      "auxclick",
+      "contextmenu"
+    ];
 
-        setTimeout(() => {
-          overlay
-            .querySelector(".site-transfer-confirm-dialog")
-            ?.classList.remove("attention");
-        }, 360);
-      }
+    blockedPointerEvents.forEach((eventName) => {
+      document.addEventListener(
+        eventName,
+        (event) => {
+          if (
+            overlay.dataset.transferLocked !== "true"
+            || overlay.dataset.transferResolved === "true"
+          ) {
+            return;
+          }
+
+          const dialog = overlay.querySelector(
+            ".site-transfer-confirm-dialog"
+          );
+
+          if (dialog?.contains(event.target)) return;
+
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+
+          enforceTransferConfirmLock(overlay);
+          pulseTransferConfirmDialog(overlay);
+        },
+        true
+      );
     });
 
     overlay
       .querySelector("[data-transfer-dialog-confirm]")
       ?.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
         const id = overlay.dataset.resourceId;
         const source = overlay.dataset.sourceLabel;
         const title = overlay.dataset.resourceTitle;
@@ -2040,13 +2109,16 @@
         );
 
         setTimeout(() => {
-          closeTransferConfirmOverlay();
+          closeTransferConfirmOverlay("confirmed");
         }, 520);
       });
 
     overlay
       .querySelector("[data-transfer-dialog-failed]")
       ?.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
         const id = overlay.dataset.resourceId;
         const source = overlay.dataset.sourceLabel;
         const title = overlay.dataset.resourceTitle;
@@ -2077,7 +2149,7 @@
         );
 
         setTimeout(() => {
-          closeTransferConfirmOverlay();
+          closeTransferConfirmOverlay("failed");
         }, 520);
       });
 
@@ -2085,41 +2157,98 @@
       "keydown",
       (event) => {
         if (
-          !document.body.classList.contains(
-            "site-transfer-confirm-open"
-          )
+          overlay.dataset.transferLocked !== "true"
+          || overlay.dataset.transferResolved === "true"
         ) {
           return;
         }
 
-        if (event.key === "Escape") {
+        if (
+          event.key === "Escape"
+          || event.key === "BrowserBack"
+        ) {
           event.preventDefault();
+          event.stopPropagation();
           event.stopImmediatePropagation();
 
-          overlay
-            .querySelector(".site-transfer-confirm-dialog")
-            ?.classList.add("attention");
+          enforceTransferConfirmLock(overlay);
+          pulseTransferConfirmDialog(overlay);
+          return;
+        }
 
-          setTimeout(() => {
-            overlay
-              .querySelector(".site-transfer-confirm-dialog")
-              ?.classList.remove("attention");
-          }, 360);
+        if (event.key === "Tab") {
+          const buttons = [
+            ...overlay.querySelectorAll(
+              ".site-transfer-confirm-buttons button:not(:disabled)"
+            )
+          ];
+
+          if (!buttons.length) {
+            event.preventDefault();
+            return;
+          }
+
+          const first = buttons[0];
+          const last = buttons[buttons.length - 1];
+
+          if (
+            event.shiftKey
+            && document.activeElement === first
+          ) {
+            event.preventDefault();
+            last.focus();
+          } else if (
+            !event.shiftKey
+            && document.activeElement === last
+          ) {
+            event.preventDefault();
+            first.focus();
+          }
         }
       },
       true
     );
 
+    const lockObserver = new MutationObserver(() => {
+      enforceTransferConfirmLock(overlay);
+    });
+
+    lockObserver.observe(overlay, {
+      attributes: true,
+      attributeFilter: [
+        "hidden",
+        "class",
+        "style",
+        "aria-hidden",
+        "data-transfer-locked",
+        "data-transfer-resolved"
+      ]
+    });
+
+    lockObserver.observe(document.body, {
+      attributes: true,
+      attributeFilter: ["class"],
+      childList: true
+    });
+
     return overlay;
   }
 
-  function closeTransferConfirmOverlay() {
+  function closeTransferConfirmOverlay(result) {
     const overlay = document.getElementById(
       "siteTransferConfirmOverlay"
     );
 
-    if (!overlay) return;
+    if (!overlay) return false;
 
+    if (!["confirmed", "failed"].includes(result)) {
+      enforceTransferConfirmLock(overlay);
+      pulseTransferConfirmDialog(overlay);
+      return false;
+    }
+
+    overlay.dataset.transferResolved = "true";
+    overlay.dataset.transferLocked = "false";
     overlay.classList.remove("show");
     overlay.setAttribute("aria-hidden", "true");
 
@@ -2138,6 +2267,8 @@
           button.removeAttribute("data-transfer-close-locked");
         });
     }, 190);
+
+    return true;
   }
 
   function revealAfterOpenPrompt(modal, resource, sourceLabel) {
@@ -2148,6 +2279,8 @@
       resource.title || "当前资源";
     overlay.dataset.sourceLabel =
       sourceLabel || "未知网盘";
+    overlay.dataset.transferResolved = "false";
+    overlay.dataset.transferLocked = "true";
 
     const title = overlay.querySelector(
       "[data-transfer-dialog-title]"
@@ -2205,19 +2338,20 @@
         button.dataset.transferCloseLocked = "true";
       });
 
-    overlay.hidden = false;
-    overlay.setAttribute("aria-hidden", "false");
-    document.body.classList.add(
-      "site-transfer-confirm-open"
-    );
+    enforceTransferConfirmLock(overlay);
 
     requestAnimationFrame(() => {
-      overlay.classList.add("show");
+      enforceTransferConfirmLock(overlay);
       confirm?.focus({
         preventScroll: true
       });
     });
+
+    setTimeout(() => {
+      enforceTransferConfirmLock(overlay);
+    }, 300);
   }
+
 
   function removeLegacyTransferConfirmPanel(modal) {
     modal

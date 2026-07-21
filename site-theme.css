@@ -2897,3 +2897,46 @@ body.site-transfer-confirm-open
 [data-site-status-resource] {
   display: none !important;
 }
+
+
+/* ==========================================================
+   Hardened transfer-confirm lock
+   ========================================================== */
+
+.site-transfer-confirm-overlay[
+  data-transfer-locked="true"
+][
+  data-transfer-resolved="false"
+] {
+  display: grid !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+.site-transfer-confirm-overlay[
+  data-transfer-locked="true"
+][
+  data-transfer-resolved="false"
+][hidden] {
+  display: grid !important;
+}
+
+body.site-transfer-confirm-open {
+  overflow: hidden !important;
+  touch-action: none !important;
+}
+
+body.site-transfer-confirm-open
+.site-transfer-confirm-overlay {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body.site-transfer-confirm-open
+.site-transfer-confirm-dialog,
+body.site-transfer-confirm-open
+.site-transfer-confirm-buttons button {
+  user-select: auto;
+  -webkit-user-select: auto;
+}
