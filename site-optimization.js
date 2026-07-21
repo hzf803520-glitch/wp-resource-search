@@ -498,6 +498,41 @@
           flex: 1;
         }
       }
+
+      .site-category-count {
+        display: inline-grid;
+        min-width: 18px;
+        height: 18px;
+        margin-left: 5px;
+        place-items: center;
+        border-radius: 999px;
+        padding: 0 5px;
+        color: #8b55a8;
+        background: rgba(230, 83, 241, .10);
+        font-size: 9px;
+        font-weight: 850;
+        line-height: 18px;
+        vertical-align: middle;
+        pointer-events: none;
+      }
+
+      button[aria-pressed="true"] > .site-category-count,
+      .active > .site-category-count,
+      .selected > .site-category-count {
+        color: #fff;
+        background: rgba(255,255,255,.26);
+      }
+
+      @media (max-width: 359px) {
+        .site-category-count {
+          min-width: 16px;
+          height: 16px;
+          margin-left: 3px;
+          padding-inline: 4px;
+          font-size: 8px;
+          line-height: 16px;
+        }
+      }
     `;
     document.head.appendChild(style);
   }
@@ -888,10 +923,89 @@
     applyStatusBadges();
   }
 
+  function categoryCountMap() {
+    const counts = new Map();
+
+    resources()
+      .filter((resource) => resource?.visible !== false)
+      .forEach((resource) => {
+        const category = normalize(resource.category);
+        if (!category) return;
+        counts.set(category, (counts.get(category) || 0) + 1);
+      });
+
+    return counts;
+  }
+
+  function categoryLabels() {
+    const configured = Array.isArray(config?.categories)
+      ? config.categories
+          .map((category) => normalize(category?.label || category))
+          .filter(Boolean)
+      : [];
+
+    return [...new Set([
+      ...configured,
+      ...categoryCountMap().keys()
+    ])];
+  }
+
+  function updateCategoryCounts() {
+    if (!config || !Array.isArray(config.resources)) return;
+
+    const counts = categoryCountMap();
+    const labels = categoryLabels();
+
+    document.querySelectorAll(
+      "button,a,[role='button'],span"
+    ).forEach((element) => {
+      if (element.closest("#adminView")) return;
+      if (element.closest("#allCloudLinksModal")) return;
+      if (element.closest("#qrPromoModal")) return;
+
+      const existing = element.querySelector(
+        ":scope > [data-site-category-count]"
+      );
+
+      const rawText = normalize(
+        [...element.childNodes]
+          .filter((node) => node.nodeType === Node.TEXT_NODE)
+          .map((node) => node.textContent)
+          .join(" ")
+      );
+
+      const fullText = normalize(element.textContent);
+      const label = labels.find((item) => (
+        rawText === item
+        || fullText === item
+        || fullText.replace(/\s+\d+$/, "") === item
+      ));
+
+      if (!label) {
+        existing?.remove();
+        return;
+      }
+
+      const count = counts.get(label) || 0;
+      let badge = existing;
+
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.dataset.siteCategoryCount = "true";
+        badge.className = "site-category-count";
+        element.appendChild(badge);
+      }
+
+      badge.textContent = String(count);
+      badge.setAttribute("aria-label", `${label}共${count}条`);
+    });
+  }
+
   function schedulePublicRender() {
     clearTimeout(publicRenderTimer);
     publicRenderTimer = setTimeout(() => {
       applyStatusBadges();
+      updateCategoryCounts();
       enhanceResourceCards();
       installHomeValueStrip();
       enhanceLinksModal();
