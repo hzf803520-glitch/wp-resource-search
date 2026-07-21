@@ -1914,6 +1914,105 @@
     } catch {}
   }
 
+  const TRANSFER_PENDING_KEY =
+    "site-transfer-confirm-pending-v1";
+
+  function savePendingTransferConfirm(resource, sourceLabel) {
+    const payload = {
+      resourceId: String(resource?.id ?? ""),
+      resourceTitle: normalize(resource?.title) || "当前资源",
+      sourceLabel: normalize(sourceLabel) || "未知网盘",
+      createdAt: Date.now()
+    };
+
+    try {
+      sessionStorage.setItem(
+        TRANSFER_PENDING_KEY,
+        JSON.stringify(payload)
+      );
+    } catch {}
+
+    return payload;
+  }
+
+  function readPendingTransferConfirm() {
+    try {
+      const raw = sessionStorage.getItem(
+        TRANSFER_PENDING_KEY
+      );
+
+      if (!raw) return null;
+
+      const payload = JSON.parse(raw);
+      const age = Date.now() - Number(payload?.createdAt || 0);
+
+      if (
+        !payload
+        || !payload.resourceId
+        || !payload.sourceLabel
+        || age < 0
+        || age > 12 * 60 * 60 * 1000
+      ) {
+        sessionStorage.removeItem(
+          TRANSFER_PENDING_KEY
+        );
+        return null;
+      }
+
+      return payload;
+    } catch {
+      return null;
+    }
+  }
+
+  function clearPendingTransferConfirm() {
+    try {
+      sessionStorage.removeItem(
+        TRANSFER_PENDING_KEY
+      );
+    } catch {}
+  }
+
+  function repairStaleTransferConfirmLock() {
+    const overlay = document.getElementById(
+      "siteTransferConfirmOverlay"
+    );
+    const pending = readPendingTransferConfirm();
+    const locked = Boolean(
+      overlay
+      && overlay.dataset.transferLocked === "true"
+      && overlay.dataset.transferResolved !== "true"
+    );
+
+    if (pending || locked) return false;
+
+    document.body.classList.remove(
+      "site-transfer-confirm-open"
+    );
+
+    if (overlay) {
+      overlay.dataset.transferLocked = "false";
+      overlay.dataset.transferResolved = "true";
+      overlay.classList.remove("show");
+      overlay.hidden = true;
+      overlay.setAttribute("aria-hidden", "true");
+      overlay.removeAttribute("style");
+    }
+
+    document
+      .querySelectorAll(
+        ".all-links-bottom-close[data-transfer-close-locked]"
+      )
+      .forEach((button) => {
+        button.disabled = false;
+        button.removeAttribute(
+          "data-transfer-close-locked"
+        );
+      });
+
+    return true;
+  }
+
   function pulseTransferConfirmDialog(overlay) {
     const dialog = overlay?.querySelector(
       ".site-transfer-confirm-dialog"
@@ -1943,10 +2042,42 @@
     overlay.removeAttribute("hidden");
     overlay.setAttribute("aria-hidden", "false");
     overlay.classList.add("show");
-    overlay.style.removeProperty("display");
-    overlay.style.removeProperty("visibility");
-    overlay.style.removeProperty("opacity");
-    overlay.style.removeProperty("pointer-events");
+
+    overlay.style.setProperty(
+      "position",
+      "fixed",
+      "important"
+    );
+    overlay.style.setProperty(
+      "inset",
+      "0",
+      "important"
+    );
+    overlay.style.setProperty(
+      "z-index",
+      "2147483646",
+      "important"
+    );
+    overlay.style.setProperty(
+      "display",
+      "grid",
+      "important"
+    );
+    overlay.style.setProperty(
+      "visibility",
+      "visible",
+      "important"
+    );
+    overlay.style.setProperty(
+      "opacity",
+      "1",
+      "important"
+    );
+    overlay.style.setProperty(
+      "pointer-events",
+      "auto",
+      "important"
+    );
 
     document.body.classList.add(
       "site-transfer-confirm-open"
@@ -2253,6 +2384,8 @@
       return false;
     }
 
+    clearPendingTransferConfirm();
+
     overlay.dataset.transferResolved = "true";
     overlay.dataset.transferLocked = "false";
     overlay.classList.remove("show");
@@ -2260,6 +2393,7 @@
 
     setTimeout(() => {
       overlay.hidden = true;
+      overlay.removeAttribute("style");
       document.body.classList.remove(
         "site-transfer-confirm-open"
       );
@@ -2344,6 +2478,11 @@
   }
 
   function revealAfterOpenPrompt(modal, resource, sourceLabel) {
+    savePendingTransferConfirm(
+      resource,
+      sourceLabel
+    );
+
     const overlay = transferConfirmOverlay();
 
     overlay.dataset.resourceId = String(resource.id);
@@ -2452,6 +2591,60 @@
   }
 
 
+  function restorePendingTransferConfirm(reason) {
+    const pending = readPendingTransferConfirm();
+
+    if (!pending) {
+      repairStaleTransferConfirmLock();
+      return false;
+    }
+
+    const resource = resources().find(
+      (item) => String(item.id) === pending.resourceId
+    ) || {
+      id: pending.resourceId,
+      title: pending.resourceTitle
+    };
+
+    const modal =
+      document.getElementById("allCloudLinksModal")
+      || document.querySelector(".all-links-overlay");
+
+    revealAfterOpenPrompt(
+      modal,
+      resource,
+      pending.sourceLabel
+    );
+
+    const overlay = transferConfirmOverlay();
+    overlay.dataset.transferRestoreReason =
+      normalize(reason) || "restore";
+
+    enforceTransferConfirmLock(overlay);
+
+    requestAnimationFrame(() => {
+      enforceTransferConfirmLock(overlay);
+
+      overlay
+        .querySelector(
+          ".site-transfer-confirm-dialog"
+        )
+        ?.focus({
+          preventScroll: true
+        });
+    });
+
+    setTimeout(() => {
+      enforceTransferConfirmLock(overlay);
+    }, 80);
+
+    setTimeout(() => {
+      enforceTransferConfirmLock(overlay);
+    }, 320);
+
+    return true;
+  }
+
   function removeLegacyTransferConfirmPanel(modal) {
     modal
       ?.querySelectorAll(
@@ -2466,13 +2659,26 @@
     link.dataset.siteTransferBound = "true";
     link.addEventListener("click", () => {
       removeLegacyTransferConfirmPanel(modal);
+      savePendingTransferConfirm(
+        resource,
+        sourceLabel
+      );
       sendEvent("source_open", { resourceId: String(resource.id), title: resource.title, sourceLabel });
       link.classList.add("opened");
       link.textContent = "已打开网盘，请完成保存";
 
       setTimeout(() => {
-        revealAfterOpenPrompt(modal, resource, sourceLabel);
-      }, 650);
+        if (
+          document.visibilityState === "visible"
+          && readPendingTransferConfirm()
+        ) {
+          revealAfterOpenPrompt(
+            modal,
+            resource,
+            sourceLabel
+          );
+        }
+      }, 850);
 
       setTimeout(() => {
         if (link.isConnected) {
@@ -3409,19 +3615,58 @@
     installPublicTracking();
     schedulePublicRender();
 
-    window.addEventListener("pageshow", () => {
+    window.addEventListener("pageshow", (event) => {
       refreshPublicStatuses();
+
+      setTimeout(() => {
+        restorePendingTransferConfirm(
+          event.persisted
+            ? "pageshow-bfcache"
+            : "pageshow"
+        );
+      }, 40);
     });
 
     window.addEventListener("focus", () => {
       refreshPublicStatuses();
+
+      setTimeout(() => {
+        restorePendingTransferConfirm("focus");
+      }, 90);
     });
 
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") {
         refreshPublicStatuses();
+
+        setTimeout(() => {
+          restorePendingTransferConfirm(
+            "visibility-visible"
+          );
+        }, 60);
       }
     });
+
+    window.addEventListener("pagehide", () => {
+      const pending = readPendingTransferConfirm();
+      const overlay = document.getElementById(
+        "siteTransferConfirmOverlay"
+      );
+
+      if (
+        pending
+        && overlay
+        && overlay.dataset.transferResolved !== "true"
+      ) {
+        overlay.dataset.transferLocked = "true";
+      }
+    });
+
+    setTimeout(() => {
+      restorePendingTransferConfirm(
+        "initial-public-load"
+      );
+    }, 120);
 
     // Refresh occasionally so a status saved in the admin appears without
     // forcing the user to clear all browser data.

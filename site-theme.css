@@ -3084,3 +3084,60 @@ body.site-transfer-confirm-open
   color: #49665a !important;
   background: #eefaf4 !important;
 }
+
+
+/* ==========================================================
+   iOS/Safari return-page transfer modal recovery
+   ========================================================== */
+
+html:has(
+  .site-transfer-confirm-overlay[
+    data-transfer-locked="true"
+  ][
+    data-transfer-resolved="false"
+  ]
+),
+body.site-transfer-confirm-open {
+  overflow: hidden !important;
+}
+
+.site-transfer-confirm-overlay[
+  data-transfer-locked="true"
+][
+  data-transfer-resolved="false"
+] {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483646 !important;
+  display: grid !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  transform: none !important;
+  contain: none !important;
+}
+
+.site-transfer-confirm-overlay[
+  data-transfer-locked="true"
+][
+  data-transfer-resolved="false"
+] .site-transfer-confirm-dialog {
+  position: relative !important;
+  z-index: 1 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+@supports (-webkit-touch-callout: none) {
+  .site-transfer-confirm-overlay[
+    data-transfer-locked="true"
+  ][
+    data-transfer-resolved="false"
+  ] {
+    min-height: 100vh !important;
+    min-height: 100dvh !important;
+    -webkit-transform: translateZ(0) !important;
+    transform: translateZ(0) !important;
+  }
+}
