@@ -1486,8 +1486,8 @@ async function serveStatic(req, res, url) {
       const qrPromoScript = '<script src="/qr-promo-config.js?v=20260719-1"></script>';
       const recentUpdatesScript = '<script src="/recent-updates-config.js?v=20260720-3"></script>';
       const yearConfigScript = '<script src="/year-config.js?v=20260720-1"></script>';
-      const siteOptimizationScript = '<script src="/site-optimization.js?v=20260721-transfer-1"></script>';
-      const siteThemeStyle = '<link rel="stylesheet" href="/site-theme.css?v=20260721-transfer-1">';
+      const siteOptimizationScript = '<script src="/site-optimization.js?v=20260721-transfer-force-2"></script>';
+      const siteThemeStyle = '<link rel="stylesheet" href="/site-theme.css?v=20260721-transfer-force-2">';
       const scripts = [
         !html.includes("/notice-config.js") ? noticeScript : "",
         ["/index.html", "/search.html"].includes(pathname) && !html.includes("/all-links-modal.js")
