@@ -1977,8 +1977,14 @@
         aria-describedby="siteTransferConfirmDescription"
         tabindex="-1"
       >
-        <div class="site-transfer-confirm-visual">
-          <span>💾</span>
+        <div
+          class="site-transfer-confirm-visual"
+          data-transfer-dialog-icon-wrap
+        >
+          <span
+            class="site-transfer-drive-icon site-transfer-drive-generic"
+            data-transfer-dialog-icon
+          >☁</span>
         </div>
 
         <div class="site-transfer-confirm-heading">
@@ -2001,7 +2007,7 @@
           class="site-transfer-confirm-notice"
           data-transfer-dialog-notice
         >
-          此数据为用户主动确认，不是网盘平台官方验证。
+          请确认是否完成✅网盘文件的转存。
         </div>
 
         <div class="site-transfer-confirm-buttons">
@@ -2271,6 +2277,72 @@
     return true;
   }
 
+  function transferDriveIcon(sourceLabel) {
+    const value = normalize(sourceLabel).toLowerCase();
+
+    if (value.includes("百度") || value.includes("baidu")) {
+      return {
+        className: "site-transfer-drive-baidu",
+        text: "百",
+        label: "百度网盘"
+      };
+    }
+
+    if (
+      value.includes("夸克")
+      || value.includes("quark")
+      || value.includes("quark网盘")
+    ) {
+      return {
+        className: "site-transfer-drive-quark",
+        text: "夸",
+        label: "夸克网盘"
+      };
+    }
+
+    if (
+      value.includes("uc")
+      || value.includes("UC")
+      || value.includes("uc网盘")
+    ) {
+      return {
+        className: "site-transfer-drive-uc",
+        text: "UC",
+        label: "UC网盘"
+      };
+    }
+
+    if (
+      value.includes("迅雷")
+      || value.includes("xunlei")
+      || value.includes("thunder")
+    ) {
+      return {
+        className: "site-transfer-drive-xunlei",
+        text: "⚡",
+        label: "迅雷网盘"
+      };
+    }
+
+    if (
+      value.includes("阿里")
+      || value.includes("aliyun")
+      || value.includes("alipan")
+    ) {
+      return {
+        className: "site-transfer-drive-aliyun",
+        text: "阿",
+        label: "阿里云盘"
+      };
+    }
+
+    return {
+      className: "site-transfer-drive-generic",
+      text: "☁",
+      label: sourceLabel || "网盘"
+    };
+  }
+
   function revealAfterOpenPrompt(modal, resource, sourceLabel) {
     const overlay = transferConfirmOverlay();
 
@@ -2291,6 +2363,12 @@
     const notice = overlay.querySelector(
       "[data-transfer-dialog-notice]"
     );
+    const icon = overlay.querySelector(
+      "[data-transfer-dialog-icon]"
+    );
+    const iconWrap = overlay.querySelector(
+      "[data-transfer-dialog-icon-wrap]"
+    );
     const confirm = overlay.querySelector(
       "[data-transfer-dialog-confirm]"
     );
@@ -2306,6 +2384,27 @@
       source.textContent = sourceLabel || "未知网盘";
     }
 
+    const driveIcon = transferDriveIcon(sourceLabel);
+
+    if (icon) {
+      icon.className =
+        `site-transfer-drive-icon ${driveIcon.className}`;
+      icon.textContent = driveIcon.text;
+      icon.setAttribute(
+        "aria-label",
+        driveIcon.label
+      );
+      icon.title = driveIcon.label;
+    }
+
+    if (iconWrap) {
+      iconWrap.dataset.driveType =
+        driveIcon.className.replace(
+          "site-transfer-drive-",
+          ""
+        );
+    }
+
     const confirmed = alreadyConfirmed(
       String(resource.id),
       sourceLabel
@@ -2313,8 +2412,8 @@
 
     if (notice) {
       notice.textContent = confirmed
-        ? "本设备此前已经确认过该资源，本次选择不会重复计数。"
-        : "此数据为用户主动确认，不是网盘平台官方验证。";
+        ? "请确认是否完成✅网盘文件的转存。本设备此前已经记录过，本次不会重复计数。"
+        : "请确认是否完成✅网盘文件的转存。";
     }
 
     if (confirm) {

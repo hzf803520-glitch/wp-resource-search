@@ -2940,3 +2940,147 @@ body.site-transfer-confirm-open
   user-select: auto;
   -webkit-user-select: auto;
 }
+
+
+/* ==========================================================
+   Drive-specific transfer confirmation icons
+   ========================================================== */
+
+.site-transfer-confirm-visual {
+  overflow: visible;
+}
+
+.site-transfer-drive-icon {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  border-radius: 15px;
+  color: #fff;
+  font-size: 18px;
+  font-style: normal;
+  font-weight: 950;
+  line-height: 1;
+  letter-spacing: -.5px;
+  box-shadow:
+    0 10px 22px rgba(44, 54, 68, .15),
+    inset 0 1px 0 rgba(255, 255, 255, .28);
+}
+
+.site-transfer-drive-baidu {
+  background:
+    linear-gradient(
+      145deg,
+      #2f7df6,
+      #1c5fd9
+    );
+}
+
+.site-transfer-drive-quark {
+  background:
+    linear-gradient(
+      145deg,
+      #7f5cff,
+      #5b38df
+    );
+}
+
+.site-transfer-drive-uc {
+  background:
+    linear-gradient(
+      145deg,
+      #ff9b2f,
+      #f06d11
+    );
+  font-size: 13px;
+  letter-spacing: -.8px;
+}
+
+.site-transfer-drive-xunlei {
+  background:
+    linear-gradient(
+      145deg,
+      #38a9ff,
+      #1377e4
+    );
+  font-size: 22px;
+}
+
+.site-transfer-drive-aliyun {
+  background:
+    linear-gradient(
+      145deg,
+      #ff7b3e,
+      #e9521d
+    );
+}
+
+.site-transfer-drive-generic {
+  background:
+    linear-gradient(
+      145deg,
+      #7c8b9b,
+      #596878
+    );
+}
+
+.site-transfer-confirm-visual[
+  data-drive-type="baidu"
+] {
+  background:
+    linear-gradient(
+      145deg,
+      #edf5ff,
+      #ffffff
+    );
+  box-shadow:
+    0 11px 28px rgba(47, 125, 246, .16),
+    inset 0 0 0 1px rgba(47, 125, 246, .10);
+}
+
+.site-transfer-confirm-visual[
+  data-drive-type="quark"
+] {
+  background:
+    linear-gradient(
+      145deg,
+      #f3efff,
+      #ffffff
+    );
+  box-shadow:
+    0 11px 28px rgba(127, 92, 255, .16),
+    inset 0 0 0 1px rgba(127, 92, 255, .10);
+}
+
+.site-transfer-confirm-visual[
+  data-drive-type="uc"
+] {
+  background:
+    linear-gradient(
+      145deg,
+      #fff5e8,
+      #ffffff
+    );
+  box-shadow:
+    0 11px 28px rgba(255, 139, 36, .16),
+    inset 0 0 0 1px rgba(255, 139, 36, .10);
+}
+
+.site-transfer-confirm-visual[
+  data-drive-type="xunlei"
+] {
+  background:
+    linear-gradient(
+      145deg,
+      #eaf6ff,
+      #ffffff
+    );
+  box-shadow:
+    0 11px 28px rgba(39, 145, 244, .16),
+    inset 0 0 0 1px rgba(39, 145, 244, .10);
+}
+
+.site-transfer-confirm-notice {
+  color: #49665a !important;
+  background: #eefaf4 !important;
+}
