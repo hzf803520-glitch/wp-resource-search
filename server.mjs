@@ -1413,17 +1413,121 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method === "GET" && url.pathname === "/api/admin/config") {
-    return json(res, 200, await loadConfig(), securityHeaders());
+    const adminConfig = await loadConfig();
+
+    return json(res, 200, {
+      ...adminConfig,
+      resources: (
+        Array.isArray(adminConfig?.resources)
+          ? adminConfig.resources
+          : []
+      ).map((resource) => ({
+        ...resource,
+        siteStatus: cleanText(
+          siteOpsStore.statuses?.[String(resource.id)]?.status
+            || resource.siteStatus
+            || "",
+          24
+        )
+      }))
+    }, securityHeaders());
   }
 
   if (req.method === "PUT" && url.pathname === "/api/admin/config") {
     if (!["content", "appearance", "resources"].some((permission) => hasPermission(adminSession, permission))) {
       return json(res, 403, { ok: false, message: "当前账号没有内容修改权限" }, securityHeaders());
     }
+
     const body = await readJsonBody(req);
     const current = await loadConfig();
-    const saved = await saveConfig(mergeAuthorizedConfig(body, current, adminSession));
-    return json(res, 200, { ok: true, config: saved, message: "保存成功，前台已更新" }, securityHeaders());
+    const saved = await saveConfig(
+      mergeAuthorizedConfig(body, current, adminSession)
+    );
+
+    if (
+      hasPermission(adminSession, "resources")
+      && Array.isArray(saved?.resources)
+    ) {
+      const allowedStatuses = new Set([
+        "normal",
+        "updating",
+        "broken",
+        "offline"
+      ]);
+      const requestedResources = Array.isArray(body?.resources)
+        ? body.resources
+        : [];
+      const requestedById = new Map(
+        requestedResources.map((resource) => [
+          String(resource?.id ?? ""),
+          resource
+        ])
+      );
+      const nextStatuses = {};
+      const savedAt = new Date().toISOString();
+
+      saved.resources.forEach((resource) => {
+        const id = cleanText(resource?.id, 80);
+        if (!id) return;
+
+        const requested = requestedById.get(String(resource.id));
+        const hasStatusField = Boolean(
+          requested
+          && Object.prototype.hasOwnProperty.call(
+            requested,
+            "siteStatus"
+          )
+        );
+
+        const status = cleanText(
+          hasStatusField
+            ? requested.siteStatus
+            : siteOpsStore.statuses?.[id]?.status
+              || resource.siteStatus
+              || "",
+          24
+        );
+
+        if (!allowedStatuses.has(status)) return;
+
+        nextStatuses[id] = {
+          status,
+          updatedAt:
+            siteOpsStore.statuses?.[id]?.status === status
+              ? siteOpsStore.statuses[id].updatedAt || savedAt
+              : savedAt
+        };
+      });
+
+      siteOpsStore.statuses = nextStatuses;
+      siteOpsStore.version =
+        Math.max(1, Number(siteOpsStore.version) || 1) + 1;
+      siteOpsStore.updatedAt = savedAt;
+      await queueSiteOpsSave();
+    }
+
+    const responseConfig = {
+      ...saved,
+      resources: (
+        Array.isArray(saved?.resources)
+          ? saved.resources
+          : []
+      ).map((resource) => ({
+        ...resource,
+        siteStatus: cleanText(
+          siteOpsStore.statuses?.[String(resource.id)]?.status
+            || resource.siteStatus
+            || "",
+          24
+        )
+      }))
+    };
+
+    return json(res, 200, {
+      ok: true,
+      config: responseConfig,
+      message: "保存成功，前台已更新"
+    }, securityHeaders());
   }
 
   if (req.method === "POST" && url.pathname === "/api/admin/upload") {
@@ -1486,8 +1590,8 @@ async function serveStatic(req, res, url) {
       const qrPromoScript = '<script src="/qr-promo-config.js?v=20260719-1"></script>';
       const recentUpdatesScript = '<script src="/recent-updates-config.js?v=20260720-3"></script>';
       const yearConfigScript = '<script src="/year-config.js?v=20260720-1"></script>';
-      const siteOptimizationScript = '<script src="/site-optimization.js?v=20260721-transfer-force-2"></script>';
-      const siteThemeStyle = '<link rel="stylesheet" href="/site-theme.css?v=20260721-transfer-force-2">';
+      const siteOptimizationScript = '<script src="/site-optimization.js?v=20260721-status-editor-1"></script>';
+      const siteThemeStyle = '<link rel="stylesheet" href="/site-theme.css?v=20260721-status-editor-1">';
       const scripts = [
         !html.includes("/notice-config.js") ? noticeScript : "",
         ["/index.html", "/search.html"].includes(pathname) && !html.includes("/all-links-modal.js")

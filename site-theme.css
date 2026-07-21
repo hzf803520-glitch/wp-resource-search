@@ -2846,3 +2846,54 @@ body.site-transfer-confirm-open
     transition: none !important;
   }
 }
+
+
+/* ==========================================================
+   Per-resource front display settings
+   ========================================================== */
+
+.resource-front-settings-field {
+  grid-template-columns: minmax(190px, .48fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+.resource-front-settings-controls {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.resource-front-setting-control {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.resource-front-setting-control > span {
+  color: #6f7986;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.resource-front-setting-control select {
+  margin: 0 !important;
+}
+
+@media (max-width: 860px) {
+  .resource-front-settings-field {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .resource-front-settings-controls {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The old operations-center resource status list is obsolete. */
+[data-site-ops-save-statuses],
+[data-site-status-resource] {
+  display: none !important;
+}

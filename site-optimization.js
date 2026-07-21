@@ -602,6 +602,8 @@
   function recommendationSelections() {
     const byId = new Map();
     const byIndex = new Map();
+    const statusById = new Map();
+    const statusByIndex = new Map();
 
     document.querySelectorAll(
       "[data-resource-recommended-source]"
@@ -618,7 +620,27 @@
       }
     });
 
-    return { byId, byIndex };
+    document.querySelectorAll(
+      "[data-resource-status-editor]"
+    ).forEach((select) => {
+      const resourceId = normalize(
+        select.dataset.resourceStatusEditor
+      );
+      const index = Number(select.dataset.resourceIndex);
+      const value = normalize(select.value);
+
+      if (resourceId) statusById.set(resourceId, value);
+      if (Number.isInteger(index) && index >= 0) {
+        statusByIndex.set(index, value);
+      }
+    });
+
+    return {
+      byId,
+      byIndex,
+      statusById,
+      statusByIndex
+    };
   }
 
   function addRecommendationsToPayload(payload) {
@@ -637,9 +659,17 @@
           ? selections.byIndex.get(index)
           : normalize(resource.recommendedSourceId);
 
+      const selectedStatus =
+        resourceId && selections.statusById.has(resourceId)
+          ? selections.statusById.get(resourceId)
+          : selections.statusByIndex.has(index)
+            ? selections.statusByIndex.get(index)
+            : normalize(resource.siteStatus);
+
       return {
         ...resource,
-        recommendedSourceId: selected || ""
+        recommendedSourceId: selected || "",
+        siteStatus: selectedStatus || ""
       };
     });
 
@@ -2690,27 +2720,58 @@
   }
 
   function createRecommendationField(resource, index) {
-    const field = document.createElement("label");
-    field.className = "resource-recommend-source-field";
+    const field = document.createElement("section");
+    field.className =
+      "resource-recommend-source-field resource-front-settings-field";
     field.dataset.resourceRecommendField = "true";
 
     field.innerHTML = `
       <span class="resource-recommend-source-copy">
-        <strong>推荐网盘</strong>
-        <small>仅控制当前资源前台优先展示的平台</small>
+        <strong>当前资源前台设置</strong>
+        <small>
+          推荐网盘和有效状态只作用于这一条资源，
+          点击“保存并发布”后生效
+        </small>
       </span>
-      <select
-        data-resource-recommended-source="${escapeHtml(resource.id)}"
-        data-resource-index="${index}"
-      >
-        ${recommendationOptions(resource)}
-      </select>
+
+      <div class="resource-front-settings-controls">
+        <label class="resource-front-setting-control">
+          <span>推荐网盘</span>
+          <select
+            data-resource-recommended-source="${escapeHtml(resource.id)}"
+            data-resource-index="${index}"
+          >
+            ${recommendationOptions(resource)}
+          </select>
+        </label>
+
+        <label class="resource-front-setting-control">
+          <span>资源状态</span>
+          <select
+            data-resource-status-editor="${escapeHtml(resource.id)}"
+            data-resource-index="${index}"
+          >
+            ${statusOptions(normalize(resource.siteStatus))}
+          </select>
+        </label>
+      </div>
     `;
 
-    field.querySelector("select")?.addEventListener("change", (event) => {
-      resource.recommendedSourceId = normalize(event.currentTarget.value);
-      markRecommendationDirty();
-    });
+    field
+      .querySelector("[data-resource-recommended-source]")
+      ?.addEventListener("change", (event) => {
+        resource.recommendedSourceId =
+          normalize(event.currentTarget.value);
+        markRecommendationDirty();
+      });
+
+    field
+      .querySelector("[data-resource-status-editor]")
+      ?.addEventListener("change", (event) => {
+        resource.siteStatus =
+          normalize(event.currentTarget.value);
+        markRecommendationDirty();
+      });
 
     return field;
   }
@@ -2737,6 +2798,9 @@
         const select = existing.querySelector(
           "[data-resource-recommended-source]"
         );
+        const statusSelect = existing.querySelector(
+          "[data-resource-status-editor]"
+        );
 
         if (select) {
           select.dataset.resourceRecommendedSource =
@@ -2748,6 +2812,21 @@
             && !recommendationDirty
           ) {
             select.innerHTML = recommendationOptions(resource);
+          }
+        }
+
+        if (statusSelect) {
+          statusSelect.dataset.resourceStatusEditor =
+            String(resource.id);
+          statusSelect.dataset.resourceIndex = String(index);
+
+          if (
+            document.activeElement !== statusSelect
+            && !recommendationDirty
+          ) {
+            statusSelect.innerHTML = statusOptions(
+              normalize(resource.siteStatus)
+            );
           }
         }
 
@@ -2862,8 +2941,6 @@
     if (!panel) return;
 
     const ops = payload.siteOps || {};
-    const resourcesList = Array.isArray(payload.resources) ? payload.resources : [];
-    const statuses = ops.statuses || {};
     const feedback = Array.isArray(ops.feedback) ? ops.feedback : [];
     const requests = Array.isArray(ops.requests) ? ops.requests : [];
     const pendingFeedback = feedback.filter((item) => item.status !== "resolved").length;
@@ -2889,7 +2966,7 @@
         <div>
           <span class="eyebrow">OPERATIONS</span>
           <h2>网站运营中心</h2>
-          <p>统一查看资源状态、失效反馈、用户需求和点击数据，不改动原有资源配置。</p>
+          <p>统一查看失效反馈、用户需求、转存和点击数据；资源状态已移到每条资源编辑卡片。</p>
         </div>
         <div class="site-ops-intro-actions">
           <button class="site-ops-reset" type="button" data-site-ops-reset>重置运营数据</button>
@@ -2903,27 +2980,6 @@
         <article><small>资源打开次数</small><strong>${topEntries(ops.stats?.resources, 9999).reduce((sum, [, item]) => sum + Number(item.count || 0), 0)}</strong></article>
         <article><small>进群入口点击</small><strong>${Number(ops.stats?.qr?.count || 0)}</strong></article>
       </div>
-
-      <section class="site-ops-section">
-        <div class="site-ops-section-head">
-          <div><h3>资源有效状态</h3><p>只控制前台状态标签，不会修改资源标题、排序和网盘链接。</p></div>
-          <button class="site-ops-save-statuses" type="button" data-site-ops-save-statuses>保存资源状态</button>
-        </div>
-        <div class="site-ops-table">
-          ${resourcesList.map((resource) => `
-            <label class="site-ops-row">
-              <span>
-                <strong>${escapeHtml(resource.title)}</strong>
-                <small>${escapeHtml(resource.category || "未分类")} · ID ${escapeHtml(resource.id)}</small>
-              </span>
-              <select data-site-status-resource="${escapeHtml(resource.id)}">
-                ${statusOptions(statuses[String(resource.id)]?.status || "")}
-              </select>
-              <span></span>
-            </label>
-          `).join("") || '<div class="site-ops-empty">暂无资源</div>'}
-        </div>
-      </section>
 
       <section class="site-ops-section">
         <div class="site-ops-section-head"><div><h3>链接失效反馈</h3><p>用户可在网盘链接弹窗中反馈失效。</p></div></div>
@@ -3021,36 +3077,6 @@
         }
       }
     );
-
-    panel.querySelector("[data-site-ops-save-statuses]")?.addEventListener("click", async (event) => {
-      const button = event.currentTarget;
-      const statuses = {};
-      panel.querySelectorAll("[data-site-status-resource]").forEach((select) => {
-        if (select.value) statuses[select.dataset.siteStatusResource] = select.value;
-      });
-
-      button.disabled = true;
-      button.textContent = "正在保存…";
-      try {
-        const saved = await fetchJson("/api/admin/site-ops/statuses", {
-          method: "PUT",
-          body: JSON.stringify({ statuses })
-        });
-
-        if (adminData?.siteOps) {
-          adminData.siteOps.statuses = saved.statuses || {};
-        }
-
-        showToast("资源状态已保存，前台刷新后显示");
-        button.textContent = "保存成功";
-        setTimeout(() => { button.textContent = "保存资源状态"; }, 1200);
-      } catch (error) {
-        showToast(error.message);
-        button.textContent = "重新保存";
-      } finally {
-        button.disabled = false;
-      }
-    });
 
     panel.querySelectorAll("[data-site-ops-resolve]").forEach((button) => {
       button.addEventListener("click", async () => {
