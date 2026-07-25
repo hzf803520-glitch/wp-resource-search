@@ -109,6 +109,18 @@
                 <button class="add-resource-button" type="button" id="addResourceButton">+ 新增资源</button>
               </div>
             </div>
+            <div class="editor-section">
+              <div class="section-title">
+                <div><h3>导入网盘同步CSV</h3><p>自动判定旧资源和新资源：旧资源只修改标题与新网盘链接，新资源才新增，不会重复创建。</p></div>
+              </div>
+              <div class="form-grid">
+                <label class="field wide"><span>选择“网盘资源对应表.csv”</span><input id="syncCsvFile" type="file" accept=".csv,text/csv" /></label>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:14px">
+                <button class="add-resource-button" type="button" id="importSyncCsvButton">判定旧资源并导入</button>
+                <span id="syncCsvStatus" style="font-size:11px;color:#858b97">导入后会自动保存并刷新前台数据。</span>
+              </div>
+            </div>
             <div class="resource-toolbar">
               <label class="resource-search"><span>⌕</span><input id="resourceSearch" type="search" placeholder="搜索资源名称或分类" /></label>
               <span id="filteredCount">共 0 条</span>
@@ -154,5 +166,6 @@
     <script src="./admin-persistence.js?v=20260719-2"></script>
     <script src="./admin.js?v=20260719-2"></script>
     <script src="./admin-delete-all.js?v=20260725-1"></script>
+    <script src="./admin-csv-sync.js?v=20260725-1"></script>
   </body>
 </html>
