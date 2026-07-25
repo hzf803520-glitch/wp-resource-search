@@ -104,7 +104,10 @@
           <section class="admin-panel" id="resourcePanel" data-required-permission="resources" hidden>
             <div class="panel-intro resource-intro">
               <div><span class="eyebrow">RESOURCES</span><h2>资源文案、海报与链接</h2><p>每个资源都能单独修改封面、标题、热度、分类和网盘地址。</p></div>
-              <button class="add-resource-button" type="button" id="addResourceButton">+ 新增资源</button>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end">
+                <button class="outline-button" type="button" id="deleteAllResourcesButton" style="color:#c44f5a;border-color:#f2d9dc;background:#fff5f6">删除全部资源</button>
+                <button class="add-resource-button" type="button" id="addResourceButton">+ 新增资源</button>
+              </div>
             </div>
             <div class="resource-toolbar">
               <label class="resource-search"><span>⌕</span><input id="resourceSearch" type="search" placeholder="搜索资源名称或分类" /></label>
@@ -150,5 +153,6 @@
     <datalist id="categorySuggestions"></datalist>
     <script src="./admin-persistence.js?v=20260719-2"></script>
     <script src="./admin.js?v=20260719-2"></script>
+    <script src="./admin-delete-all.js?v=20260725-1"></script>
   </body>
 </html>
