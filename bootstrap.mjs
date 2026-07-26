@@ -14,7 +14,7 @@ const RESOURCE_ENRICH_HEADERS = {
 };
 
 function normalizeEnrichTitle(value) {
-  return String(value || "").replace(/[《》\\s·.。—_-]/g, "").toLowerCase();
+  return String(value || "").replace(/[《》\s·.。—_-]/g, "").toLowerCase();
 }
 
 function enrichCategory(item) {
@@ -65,7 +65,7 @@ async function enrichResourceFromMaoyan(rawTitle) {
     heat: Math.max(0, Math.min(999999, Math.round(Number(item.wish) || 0))),
     category: enrichCategory(item),
     year: (() => {
-      const match = String(item.pubDesc || "").match(/(?:19|20)\\d{2}/);
+      const match = String(item.pubDesc || "").match(/(?:19|20)\d{2}/);
       return match ? Number(match[0]) : 0;
     })(),
     note: [item.movieTypeDesc, item.cat, item.pubDesc].filter(Boolean).join(" · ")
